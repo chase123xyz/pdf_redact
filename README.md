@@ -24,15 +24,15 @@ Automatically detect and redact sensitive information (PII) from PDF files inclu
 
 ## Features
 
+✅ **One Command Setup**: Just run `pdf-redact init` and everything happens automatically
 ✅ **Automatic PII Detection**: Built-in patterns for emails, phone numbers, addresses, and SSNs
 ✅ **Custom Name Redaction**: Specify exact names to redact across all documents
-✅ **Custom Text Patterns**: Add your own text patterns (plain text or regex)
-✅ **Logo Redaction**: Automatically detect and redact company logos and images
+✅ **Auto Logo Detection**: Automatically finds and redacts all images in reference_logos folder
 ✅ **True Redaction**: Permanently removes content (not fake white boxes)
 ✅ **Batch Processing**: Process multiple PDFs in parallel
-✅ **Interactive CLI**: Easy configuration with step-by-step wizard
-✅ **Detailed Reports**: JSON/HTML/TXT reports of all redactions
-✅ **Preview Mode**: See what will be redacted before making changes
+✅ **No Configuration Needed**: Simple wizard asks what to redact, handles the rest
+✅ **Detailed Reports**: JSON reports of all redactions
+✅ **Case-Insensitive**: Works with both .pdf and .PDF file extensions
 
 ## How It Works
 
@@ -180,27 +180,34 @@ pip install -e .
 
 ## Quick Start
 
-### Step 1: Run the Setup Wizard
+**It's a single command!** Just run:
 
 ```bash
 pdf-redact init
 ```
 
-The wizard will:
-1. **Automatically create folders** for you (input_pdfs, output_pdfs, reference_logos)
+That's it! The wizard will:
+1. **Create folders** automatically (input_pdfs, output_pdfs, reference_logos)
 2. Tell you where to put your files
 3. Ask what text you want to redact
-4. Ask if you want to redact logos
-5. Create a `config.yaml` file
+4. Auto-detect logos from reference_logos folder
+5. **Automatically process all PDFs** in input_pdfs
+6. Save redacted PDFs to output_pdfs
 
-**Example interaction:**
+**Example session:**
 ```
+================================================================================
+PDF Redaction Tool - Setup Wizard
+================================================================================
+
 ✓ Created folders: input_pdfs, output_pdfs, reference_logos
 
 WHERE TO PUT YOUR FILES:
   • Put your PDF files in the 'input_pdfs' folder
   • Put logo images (PNG/JPG) in the 'reference_logos' folder
   • Redacted PDFs will be saved to 'output_pdfs'
+
+Press Enter to continue...
 
 --- TEXT REDACTION ---
 
@@ -224,81 +231,60 @@ Also redact phone numbers? (e.g., 555-123-4567) [y/N]: y
 
 --- LOGO REDACTION ---
 
-Do you want to redact logos/images? [y/N]: n
-Skipping logo redaction.
+Found 2 logo(s) in reference_logos folder:
+  • company_logo
+  • watermark
 
+================================================================================
 ✓ Configuration saved to: config.yaml
+================================================================================
+
+Processing your PDFs now...
+
+Found 3 PDF file(s) to process
+
+================================================================================
+✓ ALL DONE!
+================================================================================
+Files processed: 3/3
+Total redactions: 47
+
+REDACTED PDFs ARE IN: output_pdfs/
+(Your original PDFs in input_pdfs/ are unchanged)
 ```
 
-### Step 2: Add Your Files
-
-Put your PDF files in the `input_pdfs` folder (created by the wizard)
-
-### Step 3: Preview (Optional)
-
-See what will be redacted before making changes:
-
-```bash
-pdf-redact preview --config config.yaml --pdf input_pdfs/your_file.pdf
-```
-
-### Step 4: Process PDFs
-
-Redact all PDFs:
-
-```bash
-pdf-redact process --config config.yaml --input-dir input_pdfs --output-dir output_pdfs
-```
-
-Redacted PDFs will be saved in the `output_pdfs` folder.
-
-### Step 5: Verify Results
-
-1. Open redacted PDFs in `output_pdfs/`
-2. Check that sensitive information is permanently removed
-3. Review `redaction_report.json` for details
+**That's it!** Your redacted PDFs are ready in the `output_pdfs/` folder.
 
 ---
 
 ## Detailed Usage
 
-### Interactive Configuration
+### First-Time Setup
 
-The `init` command guides you through creating a configuration file:
+The `init` command does everything automatically:
 
+```bash
+pdf-redact init
+```
+
+**What it does:**
+1. Creates folders (input_pdfs, output_pdfs, reference_logos)
+2. Asks what text to redact
+3. Auto-detects logos in reference_logos folder
+4. Saves configuration
+5. **Processes all PDFs immediately**
+
+**Optional: Custom config filename**
 ```bash
 pdf-redact init --output my_config.yaml
 ```
 
-**Wizard Steps:**
+### Re-Running with Existing Config
 
-1. **Text Patterns**: Choose from common patterns or create custom regex
-   - Street addresses
-   - Phone numbers
-   - Email addresses
-   - Person names
-   - Custom patterns
-
-2. **Context Keywords**: Specify words that indicate redactable context
-   - Example: "Address:", "Location:", "Ship to:"
-
-3. **Exclusion Keywords**: Words that prevent redaction
-   - Example: "Dimension", "Drawing", "Scale"
-
-4. **Logo Templates**: Add reference images
-   - Provide image path
-   - Set confidence threshold (0.85 recommended)
-
-5. **Processing Settings**: Tune performance
-   - DPI for logo detection (300 recommended)
-   - Parallel workers (4 recommended)
-
-### Processing PDFs
-
-Process all PDFs in a directory:
+If you already have a config file and want to re-process PDFs:
 
 ```bash
-pdf-redact process --config config.yaml --input-dir ./pdfs --output-dir ./redacted
+pdf-redact process --config config.yaml --input-dir input_pdfs --output-dir output_pdfs
 ```
 
 **Options:**
@@ -306,12 +292,10 @@ pdf-redact process --config config.yaml --input-dir ./pdfs --output-dir ./redact
 - `--input-dir, -i`: Directory containing PDFs (required)
 - `--output-dir, -o`: Directory for redacted PDFs (required)
 
-The tool will:
-1. Find all PDF files in input directory
-2. Apply configured redactions
-3. Save redacted versions to output directory
-4. Generate a report (JSON/HTML/TXT)
-5. Display summary statistics
+This is useful when:
+- You add more PDFs to input_pdfs
+- You want to re-process with the same settings
+- You modified the config file manually
 
 ### Preview Mode
 
