@@ -36,42 +36,48 @@ def init(output):
     """
     Interactive wizard to create a redaction configuration file.
 
-    Guides you through:
-    - Defining text patterns to redact
-    - Setting up context keywords
-    - Configuring logo templates
-    - Tuning detection parameters
+    Guides you through setting up text and logo redaction.
     """
     click.echo(Fore.GREEN + "\n" + "="*80)
-    click.echo(Fore.GREEN + "PDF Redaction Tool - Configuration Wizard")
+    click.echo(Fore.GREEN + "PDF Redaction Tool - Setup Wizard")
     click.echo(Fore.GREEN + "="*80 + "\n")
 
-    click.echo("This wizard will help you create a configuration file for PDF redaction.\n")
+    # Setup instructions
+    click.echo(Fore.CYAN + "SETUP INSTRUCTIONS:")
+    click.echo("1. Create a folder called 'input_pdfs' and put your PDF files there")
+    click.echo("2. If redacting logos, create a folder called 'reference_logos'")
+    click.echo("3. Put logo images (PNG/JPG) in the reference_logos folder")
+    click.echo("4. This wizard will create a config.yaml file\n")
+
+    click.pause("Press Enter when you're ready to continue...")
+    click.echo()
 
     # Create config
     config = RedactionConfig.create_default()
 
     # Text redaction setup
-    if click.confirm("Do you want to configure text redaction?", default=True):
-        config.text_redaction.pii = configure_pii_redaction()
+    click.echo(Fore.CYAN + "\n--- TEXT REDACTION ---\n")
+    config.text_redaction.pii = configure_pii_redaction()
 
     # Logo redaction setup
-    if click.confirm("\nDo you want to configure logo redaction?", default=True):
+    click.echo(Fore.CYAN + "\n--- LOGO REDACTION ---\n")
+    if click.confirm("Do you want to redact logos/images?", default=False):
         config.logo_redaction.templates = configure_logo_templates()
-
-    # Processing settings
-    if click.confirm("\nDo you want to customize processing settings?", default=False):
-        config.processing = configure_processing_settings(config.processing)
+    else:
+        click.echo("Skipping logo redaction.")
 
     # Save configuration
     try:
         config.to_yaml(output)
-        click.echo(Fore.GREEN + f"\n✓ Configuration saved to: {output}")
-        click.echo("\nNext steps:")
-        click.echo(f"  1. Review and edit {output} as needed")
-        click.echo("  2. Place reference logo images in ./reference_logos/")
-        click.echo("  3. Run: pdf-redact preview --config config.yaml --pdf sample.pdf")
-        click.echo("  4. Run: pdf-redact process --config config.yaml --input-dir ./pdfs --output-dir ./redacted")
+        click.echo(Fore.GREEN + f"\n✓ Configuration saved to: {output}\n")
+
+        click.echo(Fore.CYAN + "NEXT STEPS:")
+        click.echo(f"1. Preview what will be redacted:")
+        click.echo(f"   pdf-redact preview --config {output} --pdf input_pdfs/your_file.pdf")
+        click.echo()
+        click.echo(f"2. Process all PDFs:")
+        click.echo(f"   pdf-redact process --config {output} --input-dir input_pdfs --output-dir output_pdfs")
+        click.echo()
     except Exception as e:
         click.echo(Fore.RED + f"\n✗ Error saving configuration: {e}")
 
@@ -233,44 +239,44 @@ def preview(config, pdf, verbose):
 
 
 def configure_pii_redaction():
-    """Interactive configuration of PII redaction."""
-    click.echo(Fore.CYAN + "\n--- Text Redaction Configuration ---\n")
-    click.echo("Select the types of information to redact:\n")
+    """Interactive configuration of text redaction."""
+    click.echo("What text do you want to redact?\n")
 
-    # Common PII types
-    redact_emails = click.confirm("Redact email addresses?", default=False)
-    redact_phones = click.confirm("Redact phone numbers?", default=False)
-    redact_addresses = click.confirm("Redact street addresses?", default=False)
-    redact_ssn = click.confirm("Redact Social Security Numbers?", default=False)
+    # Simple text/names to redact
+    click.echo("Enter text or names to redact (one per line).")
+    click.echo("Examples: 'John Smith', 'Acme Corporation', 'CONFIDENTIAL'")
+    click.echo("Type 'done' when finished.\n")
 
-    # Custom names
     custom_names = []
-    if click.confirm("\nDo you want to add specific names to redact?", default=True):
-        while True:
-            name = click.prompt("Enter a name to redact (or press Enter to finish)", default="", show_default=False)
-            if not name:
-                break
-            custom_names.append(name)
-            click.echo(Fore.GREEN + f"✓ Added name: {name}")
-
-    # Custom text patterns
     custom_patterns = []
-    if click.confirm("\nDo you want to add custom text patterns?", default=False):
-        while True:
-            if not click.confirm("Add a custom pattern?", default=True if not custom_patterns else False):
-                break
 
-            text = click.prompt("Enter text to redact (can be plain text or regex)")
-            description = click.prompt("Enter description", default=f"Custom: {text}")
-            case_sensitive = click.confirm("Case sensitive?", default=False)
+    while True:
+        text = click.prompt("Text to redact", default="", show_default=False)
+        if not text or text.lower() == 'done':
+            break
+        custom_names.append(text)
+        click.echo(Fore.GREEN + f"✓ Will redact: {text}")
 
-            pattern = TextPattern(
-                pattern=text,
-                description=description,
-                case_sensitive=case_sensitive
-            )
-            custom_patterns.append(pattern)
-            click.echo(Fore.GREEN + f"✓ Added custom pattern: {description}")
+    # Ask about common patterns
+    redact_emails = False
+    redact_phones = False
+    redact_addresses = False
+    redact_ssn = False
+
+    if custom_names:
+        click.echo()
+
+    if click.confirm("\nAlso redact email addresses? (e.g., john@example.com)", default=False):
+        redact_emails = True
+        click.echo(Fore.GREEN + "✓ Will redact email addresses")
+
+    if click.confirm("Also redact phone numbers? (e.g., 555-123-4567)", default=False):
+        redact_phones = True
+        click.echo(Fore.GREEN + "✓ Will redact phone numbers")
+
+    if click.confirm("Also redact street addresses? (e.g., 123 Main Street)", default=False):
+        redact_addresses = True
+        click.echo(Fore.GREEN + "✓ Will redact street addresses")
 
     return PIIRedactionConfig(
         redact_emails=redact_emails,
@@ -286,33 +292,31 @@ def configure_logo_templates():
     """Interactive configuration of logo templates."""
     templates = []
 
-    click.echo(Fore.CYAN + "\n--- Logo Redaction Configuration ---\n")
-    click.echo("Place your logo image files in ./reference_logos/ directory")
+    click.echo("Add logo images you want to redact.\n")
+    click.echo("Make sure your logo images (PNG/JPG) are in the 'reference_logos' folder.\n")
 
     while True:
-        if not click.confirm("\nAdd a logo template?", default=True if not templates else False):
+        filename = click.prompt(
+            "Logo filename in reference_logos folder (or press Enter to finish)",
+            default="",
+            show_default=False
+        )
+
+        if not filename:
             break
 
-        name = click.prompt("Template name (e.g., 'company_logo')")
-        image_path = click.prompt(
-            "Image path",
-            default="./reference_logos/logo.png"
-        )
-        confidence = click.prompt(
-            "Confidence threshold (0-1)",
-            type=float,
-            default=0.85
-        )
+        # Build the path
+        image_path = f"./reference_logos/{filename}"
 
         template = LogoTemplate(
-            name=name,
+            name=filename.replace('.png', '').replace('.jpg', ''),
             image_path=image_path,
-            confidence_threshold=confidence,
+            confidence_threshold=0.85,
             scale_range=ScaleRange(min=0.5, max=2.0, step=0.1)
         )
 
         templates.append(template)
-        click.echo(Fore.GREEN + f"✓ Added logo template: {name}")
+        click.echo(Fore.GREEN + f"✓ Will redact logo: {filename}")
 
     return templates
 

@@ -180,72 +180,69 @@ pip install -e .
 
 ## Quick Start
 
-### Step 1: Prepare Your Workspace
+### Step 1: Run the Setup Wizard
 
-**macOS/Linux:**
-```bash
-mkdir -p ~/pdf_redaction_project/{input_pdfs,output_pdfs,reference_logos}
-cd ~/pdf_redaction_project
-```
-
-**Windows:**
-```powershell
-New-Item -ItemType Directory -Path C:\pdf_redaction_project\input_pdfs
-New-Item -ItemType Directory -Path C:\pdf_redaction_project\output_pdfs
-New-Item -ItemType Directory -Path C:\pdf_redaction_project\reference_logos
-cd C:\pdf_redaction_project
-```
-
-### Step 2: Gather Materials
-
-1. **Place PDFs** to redact in `input_pdfs/` folder
-2. **Extract logos** from PDFs:
-   - Take screenshot of logo
-   - Crop tightly (no whitespace)
-   - Save as PNG: `company_logo.png`
-   - Place in `reference_logos/` folder
-
-### Step 3: Create Configuration
+Navigate to the project directory and run:
 
 ```bash
 pdf-redact init
 ```
 
-Follow the interactive wizard:
-- Enable automatic PII detection (emails, phones, addresses, SSNs)
-- Add specific names to redact (e.g., "John Smith", "Acme Corp")
-- Add custom text patterns (e.g., "CONFIDENTIAL", "Employee ID: \d+")
-- Optionally add logo templates for image redaction
-- Save configuration to `config.yaml`
+The wizard will:
+1. Tell you where to put your PDF files (`input_pdfs` folder)
+2. Ask what text you want to redact
+3. Ask if you want to redact logos
+4. Create a `config.yaml` file
 
-### Step 4: Preview (Dry Run)
+**Example interaction:**
+```
+What text do you want to redact?
+
+Enter text or names to redact (one per line).
+Examples: 'John Smith', 'Acme Corporation', 'CONFIDENTIAL'
+Type 'done' when finished.
+
+Text to redact: John Smith
+✓ Will redact: John Smith
+Text to redact: Acme Corporation
+✓ Will redact: Acme Corporation
+Text to redact: done
+
+Also redact email addresses? (e.g., john@example.com) [y/N]: y
+✓ Will redact email addresses
+
+Also redact phone numbers? (e.g., 555-123-4567) [y/N]: y
+✓ Will redact phone numbers
+```
+
+### Step 2: Add Your Files
+
+1. **Put your PDFs** in the `input_pdfs` folder
+2. **If redacting logos**: Put logo images (PNG/JPG) in the `reference_logos` folder
+
+### Step 3: Preview (Optional)
+
+See what will be redacted before making changes:
 
 ```bash
-pdf-redact preview --config config.yaml --pdf ./input_pdfs/sample.pdf
+pdf-redact preview --config config.yaml --pdf input_pdfs/your_file.pdf
 ```
 
-Review what will be redacted before processing.
+### Step 4: Process PDFs
 
-### Step 5: Process PDFs
+Redact all PDFs:
 
-**macOS/Linux:**
 ```bash
-pdf-redact process \
-  --config config.yaml \
-  --input-dir ./input_pdfs \
-  --output-dir ./output_pdfs
+pdf-redact process --config config.yaml --input-dir input_pdfs --output-dir output_pdfs
 ```
 
-**Windows:**
-```powershell
-pdf-redact process --config config.yaml --input-dir .\input_pdfs --output-dir .\output_pdfs
-```
+Redacted PDFs will be saved in the `output_pdfs` folder.
 
-### Step 6: Verify Results
+### Step 5: Verify Results
 
 1. Open redacted PDFs in `output_pdfs/`
-2. Try to select redacted text (should be permanently gone)
-3. Review `redaction_report.json` for details about what was redacted
+2. Check that sensitive information is permanently removed
+3. Review `redaction_report.json` for details
 
 ---
 
