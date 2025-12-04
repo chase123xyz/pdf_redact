@@ -158,8 +158,8 @@ class PDFProcessor:
         # Create output directory if it doesn't exist
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Find all PDFs
-        pdf_files = list(input_path.glob(pattern))
+        # Find all PDFs (both .pdf and .PDF)
+        pdf_files = list(input_path.glob("*.pdf")) + list(input_path.glob("*.PDF"))
 
         if not pdf_files:
             print(f"No PDF files found in {input_dir}")
