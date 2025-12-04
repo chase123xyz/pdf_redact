@@ -83,18 +83,40 @@ def init(output):
         config.to_yaml(output)
         click.echo()
         click.echo(Fore.GREEN + "="*80)
-        click.echo(Fore.GREEN + f"✓ SETUP COMPLETE - Configuration saved to: {output}")
+        click.echo(Fore.GREEN + f"✓ Configuration saved to: {output}")
         click.echo(Fore.GREEN + "="*80)
         click.echo()
 
-        click.echo(Fore.CYAN + Style.BRIGHT + "NOW RUN THIS COMMAND TO REDACT YOUR PDFs:")
+        # Automatically process PDFs
+        click.echo(Fore.CYAN + "Processing your PDFs now...\n")
+
+        # Create processor and process files
+        processor = PDFProcessor(config)
+        results = processor.process_directory('input_pdfs', 'output_pdfs')
+
+        # Generate report
+        if config.reporting.generate_report:
+            report_gen = ReportGenerator(config)
+            report_gen.generate_report(results, 'output_pdfs')
+
+        # Show results
+        success_count = sum(1 for r in results.values() if r['success'])
+        total_count = len(results)
+        total_redactions = sum(r['redaction_count'] for r in results.values())
+
         click.echo()
-        click.echo(Fore.YELLOW + Style.BRIGHT + f"  pdf-redact process --config {output} --input-dir input_pdfs --output-dir output_pdfs")
+        click.echo(Fore.GREEN + "="*80)
+        click.echo(Fore.GREEN + "✓ ALL DONE!")
+        click.echo(Fore.GREEN + "="*80)
+        click.echo(f"Files processed: {success_count}/{total_count}")
+        click.echo(f"Total redactions: {total_redactions}")
         click.echo()
-        click.echo(Fore.CYAN + "Your redacted PDFs will be saved in the 'output_pdfs' folder.")
+        click.echo(Fore.CYAN + Style.BRIGHT + "REDACTED PDFs ARE IN: output_pdfs/")
+        click.echo(Fore.CYAN + "(Your original PDFs in input_pdfs/ are unchanged)")
         click.echo()
+
     except Exception as e:
-        click.echo(Fore.RED + f"\n✗ Error saving configuration: {e}")
+        click.echo(Fore.RED + f"\n✗ Error: {e}")
 
 
 @cli.command()
