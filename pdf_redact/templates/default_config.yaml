@@ -1,0 +1,73 @@
+version: "1.0"
+
+# Text redaction patterns
+text_redaction:
+  patterns:
+    - pattern: "\\d+\\s+[A-Za-z]+\\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr)"
+      description: "Street addresses"
+      context_mode: "proximity"
+      context_keywords:
+        - "Address:"
+        - "Location:"
+        - "Ship to:"
+        - "Bill to:"
+      proximity_threshold: 150
+      exclude_if_near:
+        - "Dimension"
+        - "Drawing"
+        - "Scale"
+        - "Detail"
+      zone_filter:
+        include: ["header", "footer", "body"]
+        exclude: ["schematic"]
+      font_criteria:
+        min_size: 8
+        max_size: 14
+        exclude_fonts: ["CourierNew", "Monaco", "ISOCP"]
+
+# Logo/image redaction
+logo_redaction:
+  templates: []
+  # Example:
+  # - name: "company_logo"
+  #   image_path: "./reference_logos/logo.png"
+  #   confidence_threshold: 0.85
+  #   scale_range:
+  #     min: 0.5
+  #     max: 2.0
+  #     step: 0.1
+
+# Context analysis rules
+context_rules:
+  address_indicators:
+    - "Address"
+    - "Street"
+    - "City"
+    - "State"
+    - "ZIP"
+    - "Location"
+  schematic_indicators:
+    - "Scale"
+    - "Drawing"
+    - "Detail"
+    - "Dimension"
+    - "Note"
+  font_heuristics:
+    annotation_fonts: ["Arial", "Helvetica", "Times"]
+    technical_fonts: ["CourierNew", "Monaco", "ISOCP"]
+
+# Processing settings
+processing:
+  render_dpi: 300
+  max_workers: 4
+  redaction_color: [255, 255, 255]  # White
+  output:
+    preserve_metadata: false
+    compress: true
+    linearize: true
+
+# Reporting settings
+reporting:
+  generate_report: true
+  report_format: "json"
+  include_coordinates: true
