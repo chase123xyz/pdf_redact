@@ -715,11 +715,3 @@ MIT License - see LICENSE file for details.
 For issues and questions:
 - GitHub Issues: [github.com/yourusername/pdf-redact/issues](https://github.com/yourusername/pdf-redact/issues)
 - Email: your.email@example.com
-
-## Contributing
-
-Contributions welcome! Please see CONTRIBUTING.md for guidelines.
-
----
-
-**Made with ❤️ for industrial document redaction**
