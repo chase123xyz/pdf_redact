@@ -89,11 +89,11 @@ class PDFProcessor:
         """
         all_areas = []
 
-        # Text redaction
-        if self.config.text_redaction.patterns:
+        # Text redaction - use patterns built from config
+        if self.text_redactor.patterns:
             text_areas = self.text_redactor.find_redaction_areas(
                 page,
-                self.config.text_redaction.patterns
+                self.text_redactor.patterns
             )
             all_areas.extend(text_areas)
 

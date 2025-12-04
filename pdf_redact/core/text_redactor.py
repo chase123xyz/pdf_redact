@@ -7,6 +7,15 @@ from dataclasses import dataclass
 from pdf_redact.config import TextPattern, RedactionConfig
 
 
+# Common PII regex patterns
+PII_PATTERNS = {
+    'email': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+    'phone': r'\b(?:\+?1[-.]?)?\(?([0-9]{3})\)?[-.]?([0-9]{3})[-.]?([0-9]{4})\b',
+    'ssn': r'\b\d{3}-\d{2}-\d{4}\b',
+    'address': r'\b\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Way)\b',
+}
+
+
 @dataclass
 class TextInstance:
     """Represents a text instance found in a PDF with metadata."""
@@ -45,10 +54,58 @@ class TextRedactor:
         """
         self.config = config
         self.context_analyzer = None  # Will be set by pdf_processor
+        self.patterns = self._build_patterns()
 
     def set_context_analyzer(self, analyzer):
         """Set the context analyzer (to avoid circular imports)."""
         self.context_analyzer = analyzer
+
+    def _build_patterns(self) -> List[TextPattern]:
+        """Build list of patterns from configuration including PII patterns."""
+        patterns = []
+
+        # Add PII patterns if enabled
+        pii_config = self.config.text_redaction.pii
+
+        if pii_config.redact_emails:
+            patterns.append(TextPattern(
+                pattern=PII_PATTERNS['email'],
+                description="Email addresses"
+            ))
+
+        if pii_config.redact_phone_numbers:
+            patterns.append(TextPattern(
+                pattern=PII_PATTERNS['phone'],
+                description="Phone numbers"
+            ))
+
+        if pii_config.redact_ssn:
+            patterns.append(TextPattern(
+                pattern=PII_PATTERNS['ssn'],
+                description="Social Security Numbers"
+            ))
+
+        if pii_config.redact_addresses:
+            patterns.append(TextPattern(
+                pattern=PII_PATTERNS['address'],
+                description="Street addresses"
+            ))
+
+        # Add custom names as literal patterns
+        for name in pii_config.custom_names:
+            patterns.append(TextPattern(
+                pattern=re.escape(name),
+                description=f"Name: {name}",
+                case_sensitive=False
+            ))
+
+        # Add custom patterns from config
+        patterns.extend(pii_config.custom_patterns)
+
+        # Add any legacy patterns from text_redaction.patterns
+        patterns.extend(self.config.text_redaction.patterns)
+
+        return patterns
 
     def find_redaction_areas(self, page: fitz.Page, patterns: List[TextPattern]) -> List[RedactionArea]:
         """

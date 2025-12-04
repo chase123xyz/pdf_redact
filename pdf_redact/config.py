@@ -30,20 +30,13 @@ class TextPattern(BaseModel):
     """Configuration for a text redaction pattern."""
     pattern: str = Field(..., description="Regex pattern or literal text to match")
     description: str = Field(..., description="Human-readable description")
-    context_mode: str = Field(default="proximity", description="Context detection mode")
+    case_sensitive: bool = Field(default=False, description="Whether pattern matching is case-sensitive")
+    whole_words_only: bool = Field(default=False, description="Only match complete words")
+
+    # Advanced options (optional)
     context_keywords: List[str] = Field(default_factory=list, description="Keywords indicating redactable context")
     proximity_threshold: int = Field(default=150, ge=10, le=1000, description="Proximity radius in pixels")
     exclude_if_near: List[str] = Field(default_factory=list, description="Keywords preventing redaction")
-    zone_filter: Optional[ZoneFilter] = None
-    font_criteria: Optional[FontCriteria] = None
-
-    @field_validator('context_mode')
-    @classmethod
-    def validate_context_mode(cls, v):
-        allowed = ['proximity', 'zone', 'font', 'hybrid']
-        if v not in allowed:
-            raise ValueError(f"context_mode must be one of {allowed}")
-        return v
 
 
 class LogoTemplate(BaseModel):
@@ -143,8 +136,23 @@ class ReportingSettings(BaseModel):
         return v
 
 
+class PIIRedactionConfig(BaseModel):
+    """PII (Personally Identifiable Information) redaction configuration."""
+    # Common PII types
+    redact_emails: bool = Field(default=False, description="Redact email addresses")
+    redact_phone_numbers: bool = Field(default=False, description="Redact phone numbers")
+    redact_addresses: bool = Field(default=False, description="Redact addresses")
+    redact_names: bool = Field(default=False, description="Redact person names")
+    redact_ssn: bool = Field(default=False, description="Redact Social Security Numbers")
+
+    # Custom patterns
+    custom_names: List[str] = Field(default_factory=list, description="Specific names to redact")
+    custom_patterns: List[TextPattern] = Field(default_factory=list, description="Custom text patterns to redact")
+
+
 class TextRedactionConfig(BaseModel):
     """Text redaction configuration."""
+    pii: PIIRedactionConfig = Field(default_factory=PIIRedactionConfig)
     patterns: List[TextPattern] = Field(default_factory=list)
 
 

@@ -1,8 +1,8 @@
 # PDF Redaction Tool
 
-**Context-aware PDF redaction for industrial documents**
+**Intelligent PII redaction for PDF documents**
 
-Intelligently redact text and logos from PDF files while preserving technical schematics and dimension labels. Perfect for architectural drawings, engineering specifications, and manufacturing documents.
+Automatically detect and redact sensitive information (PII) from PDF files including emails, phone numbers, addresses, names, and custom text patterns. Permanently removes content with true redaction (not just white boxes).
 
 ## Table of Contents
 
@@ -18,50 +18,44 @@ Intelligently redact text and logos from PDF files while preserving technical sc
   - [Processing PDFs](#processing-pdfs)
   - [Preview Mode](#preview-mode)
 - [Configuration Guide](#configuration-guide)
-- [Context-Aware Matching Explained](#context-aware-matching-explained)
 - [Advanced Usage](#advanced-usage)
 - [Troubleshooting](#troubleshooting)
-- [FAQ](#faq)
 - [Best Practices](#best-practices)
 
 ## Features
 
-✅ **Context-Aware Redaction**: Intelligently distinguishes addresses ("123 Main St") from schematic labels ("123 mm")
-✅ **Multi-Scale Logo Detection**: Find company logos at various sizes across pages
+✅ **Automatic PII Detection**: Built-in patterns for emails, phone numbers, addresses, and SSNs
+✅ **Custom Name Redaction**: Specify exact names to redact across all documents
+✅ **Custom Text Patterns**: Add your own text patterns (plain text or regex)
+✅ **Logo Redaction**: Automatically detect and redact company logos and images
 ✅ **True Redaction**: Permanently removes content (not fake white boxes)
 ✅ **Batch Processing**: Process multiple PDFs in parallel
 ✅ **Interactive CLI**: Easy configuration with step-by-step wizard
 ✅ **Detailed Reports**: JSON/HTML/TXT reports of all redactions
+✅ **Preview Mode**: See what will be redacted before making changes
 
 ## How It Works
 
-The tool uses a multi-layered approach to determine what to redact:
+### Automatic PII Detection
 
-### 1. Proximity Analysis
-Checks for context keywords within 150 pixels of the matched text:
-- **Redact** if near: "Address:", "Phone:", "Email:"
-- **Don't redact** if near: "Dimension", "Drawing", "Scale"
+The tool can automatically detect and redact:
 
-### 2. Font Analysis
-Distinguishes annotation fonts from technical fonts:
-- Arial/Helvetica 10-12pt → **Likely annotation** → Redact
-- Courier/Monaco 6-8pt → **Likely technical label** → Don't redact
+1. **Email Addresses**: `john.doe@company.com`
+2. **Phone Numbers**: `(555) 123-4567`, `555-123-4567`, `555.123.4567`
+3. **Street Addresses**: `123 Main Street`, `456 Oak Avenue`
+4. **Social Security Numbers**: `123-45-6789`
 
-### 3. Zone Classification
-Divides pages into zones:
-- Header/Footer → **High redaction probability**
-- Schematic areas (dense line drawings) → **Low redaction probability**
+### Custom Redaction
 
-### 4. Decision Fusion
-Combines all heuristics with weighted scores:
-```python
-final_score = (
-    0.4 × proximity_score +
-    0.3 × font_score +
-    0.3 × zone_score -
-    2.0 × schematic_penalty
-)
-```
+You can also specify:
+
+- **Specific Names**: "John Smith", "Acme Corporation"
+- **Custom Text**: "CONFIDENTIAL", "INTERNAL USE ONLY"
+- **Regex Patterns**: `Employee ID: \d+`, `Case #\d{6}`
+
+### Logo Detection
+
+Multi-scale template matching finds company logos at various sizes and rotations across all pages.
 
 ---
 
@@ -218,10 +212,11 @@ pdf-redact init
 ```
 
 Follow the interactive wizard:
-- Select text patterns (addresses, phone numbers, emails)
-- Specify context keywords (e.g., "Address:", "Phone:")
-- Add logo templates
-- Review and save configuration
+- Enable automatic PII detection (emails, phones, addresses, SSNs)
+- Add specific names to redact (e.g., "John Smith", "Acme Corp")
+- Add custom text patterns (e.g., "CONFIDENTIAL", "Employee ID: \d+")
+- Optionally add logo templates for image redaction
+- Save configuration to `config.yaml`
 
 ### Step 4: Preview (Dry Run)
 
@@ -249,9 +244,8 @@ pdf-redact process --config config.yaml --input-dir .\input_pdfs --output-dir .\
 ### Step 6: Verify Results
 
 1. Open redacted PDFs in `output_pdfs/`
-2. Try to select redacted text (should be gone)
-3. Check schematics are intact
-4. Review `redaction_report.json` for details
+2. Try to select redacted text (should be permanently gone)
+3. Review `redaction_report.json` for details about what was redacted
 
 ---
 
@@ -345,67 +339,51 @@ Page 2:
 
 ## Configuration Guide
 
-Configuration files use YAML format. Here's a complete example:
+Configuration files use YAML format. Here's a simple example:
 
 ```yaml
 version: "1.0"
 
-# TEXT REDACTION RULES
+# TEXT REDACTION (PII)
 text_redaction:
-  patterns:
-    - pattern: "\\d+\\s+[A-Za-z]+\\s+(Street|St|Avenue|Ave)"
-      description: "Street addresses"
-      context_mode: "proximity"          # How to detect context
-      context_keywords:                  # Nearby text indicating redaction
-        - "Address:"
-        - "Location:"
-      proximity_threshold: 150           # Search radius in pixels
-      exclude_if_near:                   # Nearby text preventing redaction
-        - "Dimension"
-        - "Drawing"
-      zone_filter:                       # Restrict to specific page areas
-        include: ["header", "footer"]
-        exclude: ["schematic"]
-      font_criteria:                     # Font-based filtering
-        min_size: 8
-        max_size: 14
-        exclude_fonts: ["CourierNew", "Monaco"]
+  pii:
+    # Enable automatic PII detection
+    redact_emails: true
+    redact_phone_numbers: true
+    redact_addresses: true
+    redact_ssn: false
 
-# LOGO/IMAGE REDACTION
+    # Specific names to redact
+    custom_names:
+      - "John Smith"
+      - "Jane Doe"
+      - "Acme Corporation"
+
+    # Custom text patterns
+    custom_patterns:
+      - pattern: "CONFIDENTIAL"
+        description: "Confidential watermark"
+        case_sensitive: false
+      - pattern: "Employee ID: \\d+"
+        description: "Employee IDs"
+        case_sensitive: false
+
+# LOGO/IMAGE REDACTION (Optional)
 logo_redaction:
   templates:
     - name: "company_logo"
       image_path: "./reference_logos/logo.png"
-      confidence_threshold: 0.85         # Match confidence (0-1)
-      scale_range:                       # Test multiple sizes
+      confidence_threshold: 0.85
+      scale_range:
         min: 0.5
         max: 2.0
         step: 0.1
-      method: "cv2.TM_CCOEFF_NORMED"    # OpenCV method
 
-# CONTEXT ANALYSIS
-context_rules:
-  address_indicators:                    # Words suggesting addresses
-    - "Address"
-    - "Street"
-    - "City"
-  schematic_indicators:                  # Words suggesting schematics
-    - "Scale"
-    - "Drawing"
-    - "Dimension"
-  font_heuristics:
-    annotation_fonts: ["Arial", "Helvetica"]
-    technical_fonts: ["CourierNew", "Monaco"]
-
-# PROCESSING
+# PROCESSING SETTINGS
 processing:
   render_dpi: 300                        # Quality for logo detection
   max_workers: 4                         # Parallel PDF processing
   redaction_color: [255, 255, 255]      # RGB white
-  output:
-    preserve_metadata: false
-    compress: true
-    linearize: true
 
 # REPORTING
 reporting:
@@ -416,139 +394,43 @@ reporting:
 
 See `examples/sample_config.yaml` for a fully-commented example.
 
----
-
-## Context-Aware Matching Explained
-
-### The Challenge
-
-Industrial PDFs contain both:
-- **Sensitive text**: "123 Main Street" → **SHOULD REDACT**
-- **Technical data**: "123 mm" dimension label → **SHOULD NOT REDACT**
-
-How does the tool distinguish them?
-
-### The Solution: Multi-Layered Intelligence
-
-#### Layer 1: Proximity Analysis
-
-**How it works**: Scan text within 150 pixels for context clues.
-
-**Example**:
-```
-Text found: "123"
-
-Nearby text (within 150px):
-- "Address: 123 Main St"  → Contains "Address" → REDACT ✓
-- "Dimension: 123 mm"     → Contains "Dimension" → DON'T REDACT ✗
-```
-
-**Configuration**:
-```yaml
-context_keywords: ["Address:", "Phone:", "Contact:"]
-exclude_if_near: ["Dimension", "Drawing", "Scale"]
-proximity_threshold: 150  # pixels
-```
-
-#### Layer 2: Font Analysis
-
-**How it works**: Analyze font family and size.
-
-**Typical patterns**:
-- Addresses: Arial/Helvetica 10-12pt → Annotation → REDACT
-- Dimensions: Courier 6-8pt → Technical label → DON'T REDACT
-
-**Example**:
-```
-Text: "123 Main St"
-Font: Arial, 11pt
-→ Matches annotation_fonts → REDACT ✓
-
-Text: "123"
-Font: CourierNew, 7pt
-→ Matches technical_fonts → DON'T REDACT ✗
-```
-
-#### Layer 3: Zone Classification
-
-**How it works**: Divide page into zones.
-
-**Zones**:
-- Header (top 15%): High redaction probability
-- Footer (bottom 15%): Often contains contact info
-- Title block (bottom-right): Engineering metadata
-- Body (middle): Mixed content
-- Schematic areas (dense lines): Low redaction probability
-
-**Visual Example**:
-```
-┌─────────────────────────────────────┐
-│ ACME Corp - 123 Oak Ave            │ ← Header (REDACT address)
-│                                     │
-│  ╔═════════════════╗                │
-│  ║  ┌───┐   123    ║                │ ← Dense lines (schematic)
-│  ║  │   ├──────────║                │   DON'T REDACT "123"
-│  ║  └───┘          ║                │
-│  ╚═════════════════╝                │
-│                                     │
-│ Contact: 123 Main St                │ ← Body with keyword (REDACT)
-└─────────────────────────────────────┘
-```
-
-#### Layer 4: Schematic Detection
-
-**How it works**: Use OpenCV to find dense line drawings.
-
-**Process**:
-1. Convert PDF page to image
-2. Detect edges using Canny
-3. Find lines using Hough transform
-4. Calculate line density in grid cells
-5. High-density areas = schematics
-6. Text in schematic areas gets heavy penalty
-
-#### Decision Fusion
-
-All layers combined:
-
-```python
-final_score = (
-    0.4 × proximity_score +     # Most important (40%)
-    0.3 × font_score +          # Secondary (30%)
-    0.3 × zone_score -          # Secondary (30%)
-    2.0 × schematic_penalty     # Heavy penalty
-)
-
-if final_score > 0.6:
-    REDACT
-else:
-    DON'T REDACT
-```
-
----
 
 ## Advanced Usage
 
 ### Custom Regex Patterns
 
-**Part Numbers**:
+You can add custom patterns to match specific text formats in your documents:
+
+**Employee IDs**:
 ```yaml
-pattern: "[A-Z]{2,3}-\\d{4,6}(-[A-Z0-9]+)?"
-description: "Part numbers (e.g., ABC-12345-REV2)"
-# These are always in schematics, so no context keywords
+custom_patterns:
+  - pattern: "EMP-\\d{5}"
+    description: "Employee IDs (e.g., EMP-12345)"
+    case_sensitive: false
 ```
 
-**Drawing References**:
+**Case Numbers**:
 ```yaml
-pattern: "DWG[- ]?\\d+"
-description: "Drawing reference numbers"
+custom_patterns:
+  - pattern: "Case #\\d{6}"
+    description: "Case numbers"
+    case_sensitive: false
 ```
 
-**Addresses with Suites**:
+**Account Numbers**:
 ```yaml
-pattern: "\\d+\\s+[A-Za-z\\s]+,\\s*(?:Suite|Ste|Apt|#)\\s*\\d+"
-description: "Addresses with suite/apt numbers"
-context_keywords: ["Address:", "Office:"]
+custom_patterns:
+  - pattern: "Account:\\s*\\d{8,12}"
+    description: "Account numbers"
+    case_sensitive: false
+```
+
+**Confidential Markers**:
+```yaml
+custom_patterns:
+  - pattern: "(CONFIDENTIAL|INTERNAL USE ONLY|PROPRIETARY)"
+    description: "Confidential watermarks"
+    case_sensitive: false
 ```
 
 ### Batch Processing Multiple Configs

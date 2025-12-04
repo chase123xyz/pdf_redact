@@ -5,7 +5,7 @@ import yaml
 from pathlib import Path
 from colorama import init, Fore, Style
 
-from pdf_redact.config import RedactionConfig, TextPattern, LogoTemplate, ScaleRange
+from pdf_redact.config import RedactionConfig, TextPattern, LogoTemplate, ScaleRange, PIIRedactionConfig
 from pdf_redact.core.pdf_processor import PDFProcessor
 from pdf_redact.utils.report_generator import ReportGenerator
 
@@ -53,7 +53,7 @@ def init(output):
 
     # Text redaction setup
     if click.confirm("Do you want to configure text redaction?", default=True):
-        config.text_redaction.patterns = configure_text_patterns()
+        config.text_redaction.pii = configure_pii_redaction()
 
     # Logo redaction setup
     if click.confirm("\nDo you want to configure logo redaction?", default=True):
@@ -232,82 +232,54 @@ def preview(config, pdf, verbose):
         raise click.Abort()
 
 
-def configure_text_patterns():
-    """Interactive configuration of text redaction patterns."""
-    patterns = []
-
+def configure_pii_redaction():
+    """Interactive configuration of PII redaction."""
     click.echo(Fore.CYAN + "\n--- Text Redaction Configuration ---\n")
+    click.echo("Select the types of information to redact:\n")
 
-    while True:
-        click.echo("\nCommon patterns:")
-        click.echo("  1. Street addresses")
-        click.echo("  2. Phone numbers")
-        click.echo("  3. Email addresses")
-        click.echo("  4. Person names")
-        click.echo("  5. Custom pattern")
+    # Common PII types
+    redact_emails = click.confirm("Redact email addresses?", default=False)
+    redact_phones = click.confirm("Redact phone numbers?", default=False)
+    redact_addresses = click.confirm("Redact street addresses?", default=False)
+    redact_ssn = click.confirm("Redact Social Security Numbers?", default=False)
 
-        choice = click.prompt(
-            "Select a pattern type (or press Enter to finish)",
-            type=int,
-            default=0,
-            show_default=False
-        )
+    # Custom names
+    custom_names = []
+    if click.confirm("\nDo you want to add specific names to redact?", default=True):
+        while True:
+            name = click.prompt("Enter a name to redact (or press Enter to finish)", default="", show_default=False)
+            if not name:
+                break
+            custom_names.append(name)
+            click.echo(Fore.GREEN + f"✓ Added name: {name}")
 
-        if choice == 0:
-            break
+    # Custom text patterns
+    custom_patterns = []
+    if click.confirm("\nDo you want to add custom text patterns?", default=False):
+        while True:
+            if not click.confirm("Add a custom pattern?", default=True if not custom_patterns else False):
+                break
 
-        pattern = None
-
-        if choice == 1:
-            pattern = TextPattern(
-                pattern=r"\d+\s+[A-Za-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr)",
-                description="Street addresses",
-                context_keywords=["Address:", "Location:", "Ship to:", "Bill to:"],
-                exclude_if_near=["Dimension", "Drawing", "Scale", "Detail"],
-                proximity_threshold=150
-            )
-        elif choice == 2:
-            pattern = TextPattern(
-                pattern=r"\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}",
-                description="Phone numbers",
-                context_keywords=["Phone:", "Tel:", "Contact:"],
-                proximity_threshold=100
-            )
-        elif choice == 3:
-            pattern = TextPattern(
-                pattern=r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-                description="Email addresses",
-                context_keywords=["Email:", "Contact:"],
-                proximity_threshold=100
-            )
-        elif choice == 4:
-            pattern = TextPattern(
-                pattern=r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b",
-                description="Person names",
-                context_keywords=["Designed by:", "Approved by:", "Engineer:"],
-                proximity_threshold=80
-            )
-        elif choice == 5:
-            regex_pattern = click.prompt("Enter regex pattern")
-            description = click.prompt("Enter description")
-            keywords = click.prompt(
-                "Enter context keywords (comma-separated)",
-                default=""
-            ).split(",")
-            keywords = [k.strip() for k in keywords if k.strip()]
+            text = click.prompt("Enter text to redact (can be plain text or regex)")
+            description = click.prompt("Enter description", default=f"Custom: {text}")
+            case_sensitive = click.confirm("Case sensitive?", default=False)
 
             pattern = TextPattern(
-                pattern=regex_pattern,
+                pattern=text,
                 description=description,
-                context_keywords=keywords,
-                proximity_threshold=150
+                case_sensitive=case_sensitive
             )
+            custom_patterns.append(pattern)
+            click.echo(Fore.GREEN + f"✓ Added custom pattern: {description}")
 
-        if pattern:
-            patterns.append(pattern)
-            click.echo(Fore.GREEN + f"✓ Added pattern: {pattern.description}")
-
-    return patterns
+    return PIIRedactionConfig(
+        redact_emails=redact_emails,
+        redact_phone_numbers=redact_phones,
+        redact_addresses=redact_addresses,
+        redact_ssn=redact_ssn,
+        custom_names=custom_names,
+        custom_patterns=custom_patterns
+    )
 
 
 def configure_logo_templates():
