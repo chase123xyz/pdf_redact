@@ -38,25 +38,33 @@ def init(output):
 
     Guides you through setting up text and logo redaction.
     """
+    from pathlib import Path
+
     click.echo(Fore.GREEN + "\n" + "="*80)
     click.echo(Fore.GREEN + "PDF Redaction Tool - Setup Wizard")
     click.echo(Fore.GREEN + "="*80 + "\n")
 
-    # Setup instructions
-    click.echo(Fore.CYAN + "SETUP INSTRUCTIONS:")
-    click.echo("1. Create a folder called 'input_pdfs' and put your PDF files there")
-    click.echo("2. If redacting logos, create a folder called 'reference_logos'")
-    click.echo("3. Put logo images (PNG/JPG) in the reference_logos folder")
-    click.echo("4. This wizard will create a config.yaml file\n")
+    # Create required folders
+    folders = ['input_pdfs', 'output_pdfs', 'reference_logos']
+    for folder in folders:
+        Path(folder).mkdir(exist_ok=True)
 
-    click.pause("Press Enter when you're ready to continue...")
+    click.echo(Fore.GREEN + "✓ Created folders: input_pdfs, output_pdfs, reference_logos\n")
+
+    # Setup instructions
+    click.echo(Fore.CYAN + "WHERE TO PUT YOUR FILES:")
+    click.echo("  • Put your PDF files in the 'input_pdfs' folder")
+    click.echo("  • Put logo images (PNG/JPG) in the 'reference_logos' folder")
+    click.echo("  • Redacted PDFs will be saved to 'output_pdfs'\n")
+
+    click.pause("Press Enter to continue...")
     click.echo()
 
     # Create config
     config = RedactionConfig.create_default()
 
     # Text redaction setup
-    click.echo(Fore.CYAN + "\n--- TEXT REDACTION ---\n")
+    click.echo(Fore.CYAN + "--- TEXT REDACTION ---\n")
     config.text_redaction.pii = configure_pii_redaction()
 
     # Logo redaction setup
@@ -72,10 +80,11 @@ def init(output):
         click.echo(Fore.GREEN + f"\n✓ Configuration saved to: {output}\n")
 
         click.echo(Fore.CYAN + "NEXT STEPS:")
-        click.echo(f"1. Preview what will be redacted:")
+        click.echo(f"1. Put your PDF files in the 'input_pdfs' folder")
+        click.echo(f"2. Preview what will be redacted:")
         click.echo(f"   pdf-redact preview --config {output} --pdf input_pdfs/your_file.pdf")
         click.echo()
-        click.echo(f"2. Process all PDFs:")
+        click.echo(f"3. Process all PDFs:")
         click.echo(f"   pdf-redact process --config {output} --input-dir input_pdfs --output-dir output_pdfs")
         click.echo()
     except Exception as e:

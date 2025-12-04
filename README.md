@@ -182,20 +182,28 @@ pip install -e .
 
 ### Step 1: Run the Setup Wizard
 
-Navigate to the project directory and run:
-
 ```bash
 pdf-redact init
 ```
 
 The wizard will:
-1. Tell you where to put your PDF files (`input_pdfs` folder)
-2. Ask what text you want to redact
-3. Ask if you want to redact logos
-4. Create a `config.yaml` file
+1. **Automatically create folders** for you (input_pdfs, output_pdfs, reference_logos)
+2. Tell you where to put your files
+3. Ask what text you want to redact
+4. Ask if you want to redact logos
+5. Create a `config.yaml` file
 
 **Example interaction:**
 ```
+✓ Created folders: input_pdfs, output_pdfs, reference_logos
+
+WHERE TO PUT YOUR FILES:
+  • Put your PDF files in the 'input_pdfs' folder
+  • Put logo images (PNG/JPG) in the 'reference_logos' folder
+  • Redacted PDFs will be saved to 'output_pdfs'
+
+--- TEXT REDACTION ---
+
 What text do you want to redact?
 
 Enter text or names to redact (one per line).
@@ -213,12 +221,18 @@ Also redact email addresses? (e.g., john@example.com) [y/N]: y
 
 Also redact phone numbers? (e.g., 555-123-4567) [y/N]: y
 ✓ Will redact phone numbers
+
+--- LOGO REDACTION ---
+
+Do you want to redact logos/images? [y/N]: n
+Skipping logo redaction.
+
+✓ Configuration saved to: config.yaml
 ```
 
 ### Step 2: Add Your Files
 
-1. **Put your PDFs** in the `input_pdfs` folder
-2. **If redacting logos**: Put logo images (PNG/JPG) in the `reference_logos` folder
+Put your PDF files in the `input_pdfs` folder (created by the wizard)
 
 ### Step 3: Preview (Optional)
 
