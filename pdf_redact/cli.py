@@ -67,12 +67,16 @@ def init(output):
     click.echo(Fore.CYAN + "--- TEXT REDACTION ---\n")
     config.text_redaction.pii = configure_pii_redaction()
 
-    # Logo redaction setup
+    # Logo redaction setup - auto-detect all images in reference_logos
     click.echo(Fore.CYAN + "\n--- LOGO REDACTION ---\n")
-    if click.confirm("Do you want to redact logos/images?", default=False):
-        config.logo_redaction.templates = configure_logo_templates()
+    logo_templates = auto_detect_logos()
+    if logo_templates:
+        click.echo(f"Found {len(logo_templates)} logo(s) in reference_logos folder:")
+        for template in logo_templates:
+            click.echo(f"  • {template.name}")
+        config.logo_redaction.templates = logo_templates
     else:
-        click.echo("Skipping logo redaction.")
+        click.echo("No logo images found in reference_logos folder.")
 
     # Save configuration
     try:
@@ -297,35 +301,27 @@ def configure_pii_redaction():
     )
 
 
-def configure_logo_templates():
-    """Interactive configuration of logo templates."""
+def auto_detect_logos():
+    """Automatically detect all logo images in reference_logos folder."""
+    from pathlib import Path
+
     templates = []
+    logo_dir = Path('./reference_logos')
 
-    click.echo("Add logo images you want to redact.\n")
-    click.echo("Make sure your logo images (PNG/JPG) are in the 'reference_logos' folder.\n")
+    if not logo_dir.exists():
+        return templates
 
-    while True:
-        filename = click.prompt(
-            "Logo filename in reference_logos folder (or press Enter to finish)",
-            default="",
-            show_default=False
-        )
-
-        if not filename:
-            break
-
-        # Build the path
-        image_path = f"./reference_logos/{filename}"
-
-        template = LogoTemplate(
-            name=filename.replace('.png', '').replace('.jpg', ''),
-            image_path=image_path,
-            confidence_threshold=0.85,
-            scale_range=ScaleRange(min=0.5, max=2.0, step=0.1)
-        )
-
-        templates.append(template)
-        click.echo(Fore.GREEN + f"✓ Will redact logo: {filename}")
+    # Find all image files
+    image_extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG']
+    for ext in image_extensions:
+        for image_path in logo_dir.glob(f'*{ext}'):
+            template = LogoTemplate(
+                name=image_path.stem,
+                image_path=str(image_path),
+                confidence_threshold=0.85,
+                scale_range=ScaleRange(min=0.5, max=2.0, step=0.1)
+            )
+            templates.append(template)
 
     return templates
 

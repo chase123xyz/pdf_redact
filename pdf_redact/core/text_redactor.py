@@ -124,11 +124,11 @@ class TextRedactor:
             # Extract text instances matching the pattern
             instances = self.extract_text_instances(page, pattern.pattern)
 
-            # Filter by context if context analyzer is available
-            if self.context_analyzer:
+            # Filter by context if context analyzer is available AND pattern has context keywords
+            if self.context_analyzer and pattern.context_keywords:
                 filtered_instances = self.filter_by_context(page, instances, pattern)
             else:
-                # Without context analyzer, include all matches
+                # Without context analyzer or context keywords, include all matches
                 filtered_instances = instances
 
             # Convert to redaction areas

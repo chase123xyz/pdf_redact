@@ -165,8 +165,8 @@ class ContextAnalyzer:
         """
         analysis = self.analyze_font_characteristics(instance)
 
-        # Check pattern-specific font criteria
-        if pattern.font_criteria:
+        # Check pattern-specific font criteria (if they exist)
+        if hasattr(pattern, 'font_criteria') and pattern.font_criteria:
             # Check if font is excluded
             if instance.font_name in pattern.font_criteria.exclude_fonts:
                 return 0.0  # Never redact excluded fonts
@@ -247,8 +247,8 @@ class ContextAnalyzer:
         Returns:
             Zone score (0-1)
         """
-        # Check pattern-specific zone filter
-        if pattern.zone_filter:
+        # Check pattern-specific zone filter (if it exists)
+        if hasattr(pattern, 'zone_filter') and pattern.zone_filter:
             zone_name = self._get_zone_for_rect(page, instance.bbox)
 
             # Check exclusions first

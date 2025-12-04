@@ -65,7 +65,7 @@ class PDFProcessor:
                 "garbage": 4,  # Garbage collection level
                 "deflate": output_settings.compress,
                 "clean": not output_settings.preserve_metadata,
-                "linear": output_settings.linearize,
+                # Note: linearize not supported in newer PyMuPDF versions
             }
 
             doc.save(output_path, **save_options)
@@ -247,11 +247,11 @@ class PDFProcessor:
         all_areas = []
 
         for page in doc:
-            # Text redaction
-            if self.config.text_redaction.patterns:
+            # Text redaction - use patterns built from config
+            if self.text_redactor.patterns:
                 text_areas = self.text_redactor.find_redaction_areas(
                     page,
-                    self.config.text_redaction.patterns
+                    self.text_redactor.patterns
                 )
                 all_areas.extend(text_areas)
 

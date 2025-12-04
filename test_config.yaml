@@ -1,0 +1,87 @@
+version: '1.0'
+text_redaction:
+  pii:
+    redact_emails: true
+    redact_phone_numbers: true
+    redact_addresses: false
+    redact_names: false
+    redact_ssn: false
+    custom_names:
+    - John Smith
+    - Acme Corporation
+    - CONFIDENTIAL
+    custom_patterns: []
+  patterns: []
+logo_redaction:
+  templates: []
+context_rules:
+  address_indicators:
+  - Address
+  - Street
+  - City
+  - State
+  - ZIP
+  - Postal Code
+  - Location
+  - Ship to
+  - Bill to
+  schematic_indicators:
+  - Scale
+  - Drawing
+  - Detail
+  - Section
+  - Dimension
+  - Note
+  - View
+  - Sheet
+  - Revision
+  - DWG
+  font_heuristics:
+    annotation_fonts:
+    - Arial
+    - Helvetica
+    - Times
+    - TimesNewRoman
+    - Calibri
+    technical_fonts:
+    - CourierNew
+    - Courier
+    - Monaco
+    - ISOCP
+    - ISOCPEUR
+    - TechnicBold
+    annotation_size_range:
+    - 8
+    - 14
+    technical_label_size_range:
+    - 6
+    - 10
+  zone_definitions:
+    header:
+      top_percent: 0.0
+      bottom_percent: 15.0
+    footer:
+      top_percent: 85.0
+      bottom_percent: 100.0
+    title_block:
+      top_percent: 85.0
+      bottom_percent: 100.0
+      left_percent: 60.0
+      right_percent: 100.0
+processing:
+  render_dpi: 300
+  max_workers: 4
+  redaction_color:
+  - 255
+  - 255
+  - 255
+  output:
+    preserve_metadata: false
+    compress: true
+    linearize: true
+reporting:
+  generate_report: true
+  report_format: json
+  include_coordinates: true
+  include_preview_images: false
+  report_filename: redaction_report.json
