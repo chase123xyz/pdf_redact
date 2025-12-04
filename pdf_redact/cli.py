@@ -81,15 +81,17 @@ def init(output):
     # Save configuration
     try:
         config.to_yaml(output)
-        click.echo(Fore.GREEN + f"\n✓ Configuration saved to: {output}\n")
-
-        click.echo(Fore.CYAN + "NEXT STEPS:")
-        click.echo(f"1. Put your PDF files in the 'input_pdfs' folder")
-        click.echo(f"2. Preview what will be redacted:")
-        click.echo(f"   pdf-redact preview --config {output} --pdf input_pdfs/your_file.pdf")
         click.echo()
-        click.echo(f"3. Process all PDFs:")
-        click.echo(f"   pdf-redact process --config {output} --input-dir input_pdfs --output-dir output_pdfs")
+        click.echo(Fore.GREEN + "="*80)
+        click.echo(Fore.GREEN + f"✓ SETUP COMPLETE - Configuration saved to: {output}")
+        click.echo(Fore.GREEN + "="*80)
+        click.echo()
+
+        click.echo(Fore.CYAN + Style.BRIGHT + "NOW RUN THIS COMMAND TO REDACT YOUR PDFs:")
+        click.echo()
+        click.echo(Fore.YELLOW + Style.BRIGHT + f"  pdf-redact process --config {output} --input-dir input_pdfs --output-dir output_pdfs")
+        click.echo()
+        click.echo(Fore.CYAN + "Your redacted PDFs will be saved in the 'output_pdfs' folder.")
         click.echo()
     except Exception as e:
         click.echo(Fore.RED + f"\n✗ Error saving configuration: {e}")
@@ -149,13 +151,17 @@ def process(config, input_dir, output_dir):
         total_redactions = sum(r['redaction_count'] for r in results.values())
 
         click.echo("\n" + Fore.GREEN + "="*80)
-        click.echo(Fore.GREEN + "Processing Complete")
+        click.echo(Fore.GREEN + "✓ REDACTION COMPLETE")
         click.echo(Fore.GREEN + "="*80)
         click.echo(f"Files processed: {success_count}/{total_count}")
         click.echo(f"Total redactions: {total_redactions}")
+        click.echo()
+        click.echo(Fore.CYAN + Style.BRIGHT + f"REDACTED PDFs ARE IN: {output_dir}/")
+        click.echo(Fore.CYAN + f"(Your original PDFs in {input_dir}/ are unchanged)")
+        click.echo()
 
         if success_count < total_count:
-            click.echo(Fore.YELLOW + f"\nWarning: {total_count - success_count} file(s) failed")
+            click.echo(Fore.YELLOW + f"Warning: {total_count - success_count} file(s) failed")
 
     except Exception as e:
         click.echo(Fore.RED + f"\n✗ Error: {e}")
