@@ -1,9 +1,10 @@
 """Generate redaction reports in various formats."""
 
 import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from pathlib import Path
 from datetime import datetime
+from rich.console import Console
 
 from pdf_redact.config import RedactionConfig
 from pdf_redact.core.text_redactor import RedactionArea
@@ -13,14 +14,9 @@ from pdf_redact.utils.geometry import rect_to_dict
 class ReportGenerator:
     """Generates redaction reports."""
 
-    def __init__(self, config: RedactionConfig):
-        """
-        Initialize the report generator.
-
-        Args:
-            config: Redaction configuration
-        """
+    def __init__(self, config: RedactionConfig, console: Optional[Console] = None):
         self.config = config
+        self.console = console or Console()
 
     def generate_report(
         self,
@@ -80,7 +76,7 @@ class ReportGenerator:
         with open(output_file, 'w') as f:
             json.dump(report, f, indent=2)
 
-        print(f"\nReport saved to: {output_file}")
+        self.console.print(f"[green]✓[/green] Report saved to [bold]{output_file}[/bold]")
 
     def _generate_text_report(self, results: Dict[str, Any], output_file: Path) -> None:
         """Generate plain text format report."""
@@ -124,7 +120,7 @@ class ReportGenerator:
         with open(output_file, 'w') as f:
             f.write('\n'.join(lines))
 
-        print(f"\nReport saved to: {output_file}")
+        self.console.print(f"[green]✓[/green] Report saved to [bold]{output_file}[/bold]")
 
     def _generate_html_report(self, results: Dict[str, Any], output_file: Path) -> None:
         """Generate HTML format report."""
@@ -247,7 +243,7 @@ class ReportGenerator:
         with open(output_file, 'w') as f:
             f.write(html)
 
-        print(f"\nReport saved to: {output_file}")
+        self.console.print(f"[green]✓[/green] Report saved to [bold]{output_file}[/bold]")
 
     def _generate_summary(self, results: Dict[str, Any]) -> Dict[str, int]:
         """Generate summary statistics."""

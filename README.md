@@ -4,7 +4,7 @@ Permanently redact text and logos from PDF files. Removes specified words, text 
 
 ## Features
 
-- **One command setup**: `pdf-redact init` walks you through everything
+- **One command**: `pdf-redact` walks you through everything and processes immediately
 - **Text redaction**: Word-level or textbox-level precision
 - **PII detection**: Built-in patterns for emails, phone numbers, addresses, SSNs
 - **Logo detection**: Multi-scale template matching finds logos at any size
@@ -23,8 +23,8 @@ source venv/bin/activate  # macOS/Linux
 # venv\Scripts\activate   # Windows
 
 # Install
-pip install -r requirements.txt
-pip install -e .
+pip install -r .dev/requirements.txt
+pip install -e .dev/
 
 # Verify
 pdf-redact --help
@@ -41,48 +41,38 @@ pdf-redact --help
 ## Quick Start
 
 ```bash
-pdf-redact init
+pdf-redact
 ```
 
 The wizard will:
-1. Create folders (`input_pdfs/`, `output_pdfs/`, `reference_logos/`)
+1. Create folders (`1. original_pdfs/`, `2. logos/`, `3. outputs/`)
 2. Ask what text to redact
-3. Auto-detect logos in `reference_logos/`
+3. Auto-detect logos in `2. logos/`
 4. Process all PDFs immediately
 
-Put your files in place before running, or re-run with `pdf-redact process` after adding files.
+Put your files in place before running, or re-run after adding files.
+
+## Folder Structure
+
+```
+your_project/
+  1. original_pdfs/   ← Put your PDFs here
+  2. logos/            ← Put logo images (PNG/JPG) here
+  3. outputs/          ← Redacted PDFs appear here
+  .pdf_redact/        ← Config & reports (hidden)
+```
 
 ## Usage
 
-### Setup & Process (first time)
-
 ```bash
-pdf-redact init
-```
-
-### Re-process with existing config
-
-```bash
-pdf-redact process
-```
-
-Uses defaults: `config.yaml`, `input_pdfs/`, `output_pdfs/`. Override with flags:
-
-```bash
-pdf-redact process --config my_config.yaml --input-dir ./docs --output-dir ./redacted
-```
-
-Add `--verbose` for debug output (logo detection details).
-
-### Preview without changes
-
-```bash
-pdf-redact preview --config config.yaml --pdf document.pdf --verbose
+pdf-redact              # Interactive wizard + process
+pdf-redact -v           # Verbose mode (logo detection debug output)
+pdf-redact -c my.yaml   # Use a specific config file
 ```
 
 ## Configuration
 
-Configuration is YAML. The wizard generates this for you, but you can edit it manually:
+Configuration is YAML, stored in `.pdf_redact/config.yaml` (hidden). The wizard generates this for you, but you can edit it manually:
 
 ```yaml
 version: "1.0"
@@ -106,7 +96,7 @@ text_redaction:
 logo_redaction:
   templates:
     - name: "company_logo"
-      image_path: "/absolute/path/to/reference_logos/logo.png"
+      image_path: "/absolute/path/to/2. logos/logo.png"
       confidence_threshold: 0.65
       scale_range:
         min: 0.5
@@ -125,17 +115,8 @@ processing:
 
 1. **Use a clean reference image**: Crop tightly, save as PNG, no whitespace border
 2. **Lower confidence threshold**: Try `0.55` - `0.65` in config
-3. **Check scale range**: Default `0.5` - `3.0` covers most cases. Use `--verbose` to see what scales are being tested
+3. **Check scale range**: Default `0.5` - `3.0` covers most cases. Use `-v` to see what scales are being tested
 4. **Try both color and B&W versions** of the logo as separate templates
-
-### Missing text redactions
-
-Use preview mode to debug:
-```bash
-pdf-redact preview --config config.yaml --pdf problem.pdf --verbose
-```
-
-Broaden your pattern or switch between word-level (`custom_names`) and textbox-level (`custom_textbox_matches`) redaction.
 
 ### Command not found
 
@@ -160,13 +141,6 @@ No. Keep your originals in a separate location.
 
 **Why is processing slow?**
 Logo detection renders each page at 300 DPI and runs template matching at multiple scales. Lower `render_dpi` or increase `max_workers` in config.
-
-## Best Practices
-
-1. **Always preview first**: `pdf-redact preview --config config.yaml --pdf sample.pdf --verbose`
-2. **Keep original PDFs**: Redactions are permanent and irreversible
-3. **Organize reference logos**: Put all logo variants (color, B&W) in `reference_logos/`
-4. **Validate results**: Open redacted PDFs and try to select/copy where text was removed
 
 ## License
 

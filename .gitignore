@@ -39,11 +39,9 @@ htmlcov/
 
 # Project specific
 *.pdf
-config.yaml
-redaction_report.json
-reference_logos/*.png
-reference_logos/*.jpg
-!examples/reference_logos/.gitkeep
+.pdf_redact/
+2. logos/*.png
+2. logos/*.jpg
 
 # OS
 .DS_Store

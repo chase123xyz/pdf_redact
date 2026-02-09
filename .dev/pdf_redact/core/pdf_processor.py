@@ -2,9 +2,10 @@
 
 import fitz  # PyMuPDF
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeRemainingColumn, MofNCompleteColumn
 
 from pdf_redact.config import RedactionConfig
 from pdf_redact.core.text_redactor import TextRedactor, RedactionArea
@@ -44,8 +45,7 @@ class PDFProcessor:
             return redaction_areas
 
         except Exception as e:
-            print(f"Error processing PDF {input_path}: {e}")
-            raise
+            raise RuntimeError(f"Error processing PDF {input_path}: {e}") from e
 
     def process_page(self, page: fitz.Page) -> List[RedactionArea]:
         """Process a single page."""
@@ -89,9 +89,13 @@ class PDFProcessor:
         self,
         input_dir: str,
         output_dir: str,
-        pattern: str = "*.pdf"
+        pattern: str = "*.pdf",
+        console: Optional[Console] = None,
     ) -> dict:
         """Process all PDFs in a directory."""
+        if console is None:
+            console = Console()
+
         input_path = Path(input_dir)
         output_path = Path(output_dir)
 
@@ -101,69 +105,79 @@ class PDFProcessor:
         pdf_files = list(input_path.glob("*.pdf")) + list(input_path.glob("*.PDF"))
 
         if not pdf_files:
-            print(f"No PDF files found in {input_dir}")
+            console.print(f"[yellow]No PDF files found in {input_dir}[/yellow]")
             return {}
 
-        print(f"Found {len(pdf_files)} PDF file(s) to process")
+        console.print(f"Found [bold]{len(pdf_files)}[/bold] PDF file(s) to process\n")
 
         max_workers = self.config.processing.max_workers
         results = {}
 
-        if max_workers == 1:
-            for pdf_file in tqdm(pdf_files, desc="Processing PDFs"):
-                output_file = output_path / pdf_file.name
-                try:
-                    redactions = self.process_pdf(str(pdf_file), str(output_file))
-                    results[str(pdf_file)] = {
-                        "output": str(output_file),
-                        "redaction_count": len(redactions),
-                        "redactions": redactions,
-                        "success": True,
-                        "error": None
-                    }
-                except Exception as e:
-                    results[str(pdf_file)] = {
-                        "output": None,
-                        "redaction_count": 0,
-                        "redactions": [],
-                        "success": False,
-                        "error": str(e)
-                    }
-        else:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_pdf = {}
-                for pdf_file in pdf_files:
-                    output_file = output_path / pdf_file.name
-                    future = executor.submit(
-                        self.process_pdf,
-                        str(pdf_file),
-                        str(output_file)
-                    )
-                    future_to_pdf[future] = (str(pdf_file), str(output_file))
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold]{task.fields[filename]}"),
+            BarColumn(bar_width=30),
+            MofNCompleteColumn(),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Processing", total=len(pdf_files), filename="")
 
-                for future in tqdm(
-                    as_completed(future_to_pdf),
-                    total=len(future_to_pdf),
-                    desc="Processing PDFs"
-                ):
-                    input_file, output_file = future_to_pdf[future]
+            if max_workers == 1:
+                for pdf_file in pdf_files:
+                    progress.update(task, filename=pdf_file.name)
+                    output_file = output_path / pdf_file.name
                     try:
-                        redactions = future.result()
-                        results[input_file] = {
-                            "output": output_file,
+                        redactions = self.process_pdf(str(pdf_file), str(output_file))
+                        results[str(pdf_file)] = {
+                            "output": str(output_file),
                             "redaction_count": len(redactions),
                             "redactions": redactions,
                             "success": True,
                             "error": None
                         }
                     except Exception as e:
-                        results[input_file] = {
+                        results[str(pdf_file)] = {
                             "output": None,
                             "redaction_count": 0,
                             "redactions": [],
                             "success": False,
                             "error": str(e)
                         }
+                    progress.advance(task)
+            else:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_pdf = {}
+                    for pdf_file in pdf_files:
+                        output_file = output_path / pdf_file.name
+                        future = executor.submit(
+                            self.process_pdf,
+                            str(pdf_file),
+                            str(output_file)
+                        )
+                        future_to_pdf[future] = (str(pdf_file), str(output_file), pdf_file.name)
+
+                    for future in as_completed(future_to_pdf):
+                        input_file, output_file, filename = future_to_pdf[future]
+                        progress.update(task, filename=filename)
+                        try:
+                            redactions = future.result()
+                            results[input_file] = {
+                                "output": output_file,
+                                "redaction_count": len(redactions),
+                                "redactions": redactions,
+                                "success": True,
+                                "error": None
+                            }
+                        except Exception as e:
+                            results[input_file] = {
+                                "output": None,
+                                "redaction_count": 0,
+                                "redactions": [],
+                                "success": False,
+                                "error": str(e)
+                            }
+                        progress.advance(task)
 
         return results
 

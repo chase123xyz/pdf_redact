@@ -1,7 +1,8 @@
+from pathlib import Path
 from setuptools import setup, find_packages
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+readme_path = Path(__file__).parent.parent / "README.md"
+long_description = readme_path.read_text(encoding="utf-8")
 
 setup(
     name="pdf-redact",
@@ -32,12 +33,11 @@ setup(
         "click>=8.1.0",
         "pyyaml>=6.0",
         "pydantic>=2.0.0",
-        "tqdm>=4.65.0",
-        "colorama>=0.4.6",
+        "rich>=13.0.0",
     ],
     entry_points={
         "console_scripts": [
-            "pdf-redact=pdf_redact.cli:cli",
+            "pdf-redact=pdf_redact.cli:main",
         ],
     },
     include_package_data=True,

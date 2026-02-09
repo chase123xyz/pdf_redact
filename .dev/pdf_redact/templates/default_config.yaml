@@ -17,7 +17,7 @@ logo_redaction:
   templates: []
   # Example:
   # - name: "company_logo"
-  #   image_path: "/absolute/path/to/reference_logos/logo.png"
+  #   image_path: "/absolute/path/to/2. logos/logo.png"
   #   confidence_threshold: 0.65
   #   scale_range:
   #     min: 0.5
