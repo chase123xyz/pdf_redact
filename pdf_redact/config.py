@@ -1,6 +1,6 @@
 """Configuration file handling and validation using Pydantic."""
 
-from typing import List, Dict, Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 import yaml
 from pathlib import Path
@@ -8,22 +8,9 @@ from pathlib import Path
 
 class ScaleRange(BaseModel):
     """Scale range for multi-scale template matching."""
-    min: float = Field(default=0.5, ge=0.1, le=1.0, description="Minimum scale")
-    max: float = Field(default=2.0, ge=1.0, le=5.0, description="Maximum scale")
-    step: float = Field(default=0.1, gt=0, le=0.5, description="Scale increment")
-
-
-class ZoneFilter(BaseModel):
-    """Zone filtering configuration."""
-    include: List[str] = Field(default_factory=lambda: ["header", "footer", "body"])
-    exclude: List[str] = Field(default_factory=list)
-
-
-class FontCriteria(BaseModel):
-    """Font-based filtering criteria."""
-    min_size: Optional[int] = Field(default=8, description="Minimum font size in points")
-    max_size: Optional[int] = Field(default=14, description="Maximum font size in points")
-    exclude_fonts: List[str] = Field(default_factory=list, description="Fonts to never redact")
+    min: float = Field(default=0.5, ge=0.1, le=5.0, description="Minimum scale")
+    max: float = Field(default=3.0, ge=0.1, le=10.0, description="Maximum scale")
+    step: float = Field(default=0.1, gt=0, le=1.0, description="Scale increment")
 
 
 class TextPattern(BaseModel):
@@ -33,17 +20,12 @@ class TextPattern(BaseModel):
     case_sensitive: bool = Field(default=False, description="Whether pattern matching is case-sensitive")
     whole_words_only: bool = Field(default=False, description="Only match complete words")
 
-    # Advanced options (optional)
-    context_keywords: List[str] = Field(default_factory=list, description="Keywords indicating redactable context")
-    proximity_threshold: int = Field(default=150, ge=10, le=1000, description="Proximity radius in pixels")
-    exclude_if_near: List[str] = Field(default_factory=list, description="Keywords preventing redaction")
-
 
 class LogoTemplate(BaseModel):
     """Configuration for a logo template."""
     name: str = Field(..., description="Template identifier")
     image_path: str = Field(..., description="Path to reference image")
-    confidence_threshold: float = Field(default=0.85, ge=0.0, le=1.0, description="Matching confidence threshold")
+    confidence_threshold: float = Field(default=0.65, ge=0.0, le=1.0, description="Matching confidence threshold")
     scale_range: ScaleRange = Field(default_factory=ScaleRange)
     method: str = Field(default="cv2.TM_CCOEFF_NORMED", description="OpenCV matching method")
 
@@ -52,47 +34,6 @@ class LogoTemplate(BaseModel):
     def validate_image_path(cls, v):
         # Just store the path, we'll validate existence at runtime
         return v
-
-
-class FontHeuristics(BaseModel):
-    """Font-based classification heuristics."""
-    annotation_fonts: List[str] = Field(
-        default_factory=lambda: ["Arial", "Helvetica", "Times", "TimesNewRoman", "Calibri"]
-    )
-    technical_fonts: List[str] = Field(
-        default_factory=lambda: ["CourierNew", "Courier", "Monaco", "ISOCP", "ISOCPEUR", "TechnicBold"]
-    )
-    annotation_size_range: List[int] = Field(default_factory=lambda: [8, 14])
-    technical_label_size_range: List[int] = Field(default_factory=lambda: [6, 10])
-
-
-class ZoneDefinition(BaseModel):
-    """Page zone definition in percentages."""
-    top_percent: float = Field(default=0, ge=0, le=100)
-    bottom_percent: float = Field(default=100, ge=0, le=100)
-    left_percent: Optional[float] = Field(default=None, ge=0, le=100)
-    right_percent: Optional[float] = Field(default=None, ge=0, le=100)
-
-
-class ZoneDefinitions(BaseModel):
-    """All page zone definitions."""
-    header: ZoneDefinition = Field(default_factory=lambda: ZoneDefinition(top_percent=0, bottom_percent=15))
-    footer: ZoneDefinition = Field(default_factory=lambda: ZoneDefinition(top_percent=85, bottom_percent=100))
-    title_block: ZoneDefinition = Field(
-        default_factory=lambda: ZoneDefinition(top_percent=85, bottom_percent=100, left_percent=60, right_percent=100)
-    )
-
-
-class ContextRules(BaseModel):
-    """Context analysis configuration."""
-    address_indicators: List[str] = Field(
-        default_factory=lambda: ["Address", "Street", "City", "State", "ZIP", "Postal Code", "Location", "Ship to", "Bill to"]
-    )
-    schematic_indicators: List[str] = Field(
-        default_factory=lambda: ["Scale", "Drawing", "Detail", "Section", "Dimension", "Note", "View", "Sheet", "Revision", "DWG"]
-    )
-    font_heuristics: FontHeuristics = Field(default_factory=FontHeuristics)
-    zone_definitions: ZoneDefinitions = Field(default_factory=ZoneDefinitions)
 
 
 class OutputSettings(BaseModel):
@@ -146,7 +87,8 @@ class PIIRedactionConfig(BaseModel):
     redact_ssn: bool = Field(default=False, description="Redact Social Security Numbers")
 
     # Custom patterns
-    custom_names: List[str] = Field(default_factory=list, description="Specific names to redact")
+    custom_names: List[str] = Field(default_factory=list, description="Specific names to redact (words only)")
+    custom_textbox_matches: List[str] = Field(default_factory=list, description="Text to find and redact entire containing textbox")
     custom_patterns: List[TextPattern] = Field(default_factory=list, description="Custom text patterns to redact")
 
 
@@ -163,10 +105,11 @@ class LogoRedactionConfig(BaseModel):
 
 class RedactionConfig(BaseModel):
     """Root configuration model."""
+    model_config = {"extra": "ignore"}
+
     version: str = Field(default="1.0", description="Config format version")
     text_redaction: TextRedactionConfig = Field(default_factory=TextRedactionConfig)
     logo_redaction: LogoRedactionConfig = Field(default_factory=LogoRedactionConfig)
-    context_rules: ContextRules = Field(default_factory=ContextRules)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     reporting: ReportingSettings = Field(default_factory=ReportingSettings)
 

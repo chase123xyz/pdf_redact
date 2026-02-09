@@ -1,8 +1,8 @@
-"""Text redaction with context-aware filtering."""
+"""Text redaction with pattern matching."""
 
 import fitz  # PyMuPDF
 import re
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 from dataclasses import dataclass
 from pdf_redact.config import TextPattern, RedactionConfig
 
@@ -10,9 +10,13 @@ from pdf_redact.config import TextPattern, RedactionConfig
 # Common PII regex patterns
 PII_PATTERNS = {
     'email': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
-    'phone': r'\b(?:\+?1[-.]?)?\(?([0-9]{3})\)?[-.]?([0-9]{3})[-.]?([0-9]{4})\b',
+    # Phone: more strict - requires common phone formats with actual phone separators or spacing
+    # Matches: (555) 123-4567, 555-123-4567, 555.123.4567, 5551234567, +1-555-123-4567
+    'phone': r'\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]([0-9]{3})[-.\s]([0-9]{4})\b',
     'ssn': r'\b\d{3}-\d{2}-\d{4}\b',
-    'address': r'\b\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Way)\b',
+    # Address: more strict - requires reasonable street name (at least 2 letters after the number)
+    # and a space before the street type to avoid matching part numbers
+    'address': r'\b\d+\s+[A-Za-z]{2,}[A-Za-z\s]*\s(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Way)\b',
 }
 
 
@@ -43,22 +47,11 @@ class RedactionArea:
 
 
 class TextRedactor:
-    """Handles text search and context-aware filtering for redaction."""
+    """Handles text search and filtering for redaction."""
 
     def __init__(self, config: RedactionConfig):
-        """
-        Initialize the text redactor.
-
-        Args:
-            config: Redaction configuration
-        """
         self.config = config
-        self.context_analyzer = None  # Will be set by pdf_processor
         self.patterns = self._build_patterns()
-
-    def set_context_analyzer(self, analyzer):
-        """Set the context analyzer (to avoid circular imports)."""
-        self.context_analyzer = analyzer
 
     def _build_patterns(self) -> List[TextPattern]:
         """Build list of patterns from configuration including PII patterns."""
@@ -91,12 +84,22 @@ class TextRedactor:
                 description="Street addresses"
             ))
 
-        # Add custom names as literal patterns
+        # Add custom names as word-level patterns (redact only the word)
         for name in pii_config.custom_names:
             patterns.append(TextPattern(
-                pattern=re.escape(name),
-                description=f"Name: {name}",
-                case_sensitive=False
+                pattern=r'\b' + re.escape(name) + r'\b',
+                description=f"Word: {name}",
+                case_sensitive=False,
+                whole_words_only=True  # This flag indicates word-level redaction
+            ))
+
+        # Add custom textbox matches (redact entire textbox containing the match)
+        for text in pii_config.custom_textbox_matches:
+            patterns.append(TextPattern(
+                pattern=re.escape(text),
+                description=f"Textbox containing: {text}",
+                case_sensitive=False,
+                whole_words_only=False  # This flag indicates textbox-level redaction
             ))
 
         # Add custom patterns from config
@@ -108,31 +111,13 @@ class TextRedactor:
         return patterns
 
     def find_redaction_areas(self, page: fitz.Page, patterns: List[TextPattern]) -> List[RedactionArea]:
-        """
-        Find all text areas that should be redacted on a page.
-
-        Args:
-            page: PDF page to search
-            patterns: List of text patterns to search for
-
-        Returns:
-            List of redaction areas
-        """
+        """Find all text areas that should be redacted on a page."""
         all_redaction_areas = []
 
         for pattern in patterns:
-            # Extract text instances matching the pattern
-            instances = self.extract_text_instances(page, pattern.pattern)
+            instances = self.extract_text_instances(page, pattern)
 
-            # Filter by context if context analyzer is available AND pattern has context keywords
-            if self.context_analyzer and pattern.context_keywords:
-                filtered_instances = self.filter_by_context(page, instances, pattern)
-            else:
-                # Without context analyzer or context keywords, include all matches
-                filtered_instances = instances
-
-            # Convert to redaction areas
-            for instance in filtered_instances:
+            for instance in instances:
                 area = RedactionArea(
                     rect=instance.bbox,
                     page_number=instance.page_number,
@@ -150,26 +135,62 @@ class TextRedactor:
 
         return all_redaction_areas
 
-    def extract_text_instances(self, page: fitz.Page, pattern: str) -> List[TextInstance]:
-        """
-        Extract all text instances matching the pattern.
-
-        Args:
-            page: PDF page
-            pattern: Regex pattern or literal text
-
-        Returns:
-            List of text instances with metadata
-        """
-        instances = []
-
+    def extract_text_instances(self, page: fitz.Page, pattern: TextPattern) -> List[TextInstance]:
+        """Extract all text instances matching the pattern."""
         try:
-            # Try regex matching first
-            regex = re.compile(pattern, re.IGNORECASE)
+            regex = re.compile(pattern.pattern, re.IGNORECASE if not pattern.case_sensitive else 0)
             is_regex = True
         except re.error:
-            # If pattern is not valid regex, treat as literal
             is_regex = False
+
+        # For word-level redaction, use word-based extraction for precise boundaries
+        if pattern.whole_words_only:
+            return self._extract_word_level(page, pattern.pattern, regex, is_regex)
+        else:
+            # For textbox-level redaction, use span-based extraction
+            return self._extract_span_level(page, pattern.pattern, regex, is_regex)
+
+    def _extract_word_level(self, page: fitz.Page, pattern_str: str, regex, is_regex: bool) -> List[TextInstance]:
+        """Extract text with word-level precision."""
+        instances = []
+
+        # Get all words with their bounding boxes
+        words = page.get_text("words")  # Returns list of (x0, y0, x1, y1, "word", block_no, line_no, word_no)
+
+        for word_info in words:
+            if len(word_info) < 5:
+                continue
+
+            x0, y0, x1, y1, word_text = word_info[:5]
+
+            # Check if this word matches the pattern
+            if is_regex:
+                if regex.search(word_text):
+                    instance = TextInstance(
+                        content=word_text,
+                        bbox=fitz.Rect(x0, y0, x1, y1),
+                        page_number=page.number,
+                        font_name="",
+                        font_size=0.0
+                    )
+                    instances.append(instance)
+            else:
+                # Case-insensitive literal match for whole word
+                if pattern_str.lower() == word_text.lower():
+                    instance = TextInstance(
+                        content=word_text,
+                        bbox=fitz.Rect(x0, y0, x1, y1),
+                        page_number=page.number,
+                        font_name="",
+                        font_size=0.0
+                    )
+                    instances.append(instance)
+
+        return instances
+
+    def _extract_span_level(self, page: fitz.Page, pattern_str: str, regex, is_regex: bool) -> List[TextInstance]:
+        """Extract text with span/textbox-level precision."""
+        instances = []
 
         # Get all text with detailed information
         text_dict = page.get_text("dict")
@@ -187,15 +208,9 @@ class TextRedactor:
 
                     # Check if text matches pattern
                     if is_regex:
-                        matches = list(regex.finditer(text))
-                        if not matches:
-                            continue
-
-                        # For regex, we need to find bounding box of matched substring
-                        # This is approximate - we'll use the whole span's bbox
-                        for match in matches:
+                        if regex.search(text):
                             instance = TextInstance(
-                                content=match.group(),
+                                content=text,
                                 bbox=fitz.Rect(span["bbox"]),
                                 page_number=page.number,
                                 font_name=span.get("font", ""),
@@ -204,8 +219,8 @@ class TextRedactor:
                             )
                             instances.append(instance)
                     else:
-                        # Literal matching
-                        if pattern.lower() in text.lower():
+                        # Literal matching - if pattern found anywhere in span, redact whole span
+                        if pattern_str.lower() in text.lower():
                             instance = TextInstance(
                                 content=text,
                                 bbox=fitz.Rect(span["bbox"]),
@@ -216,82 +231,4 @@ class TextRedactor:
                             )
                             instances.append(instance)
 
-        # Also use search_for for additional coverage
-        search_results = self._search_page(page, pattern, is_regex)
-        for result in search_results:
-            # Check if we already have this instance (avoid duplicates)
-            is_duplicate = any(
-                abs(inst.bbox.x0 - result.bbox.x0) < 1 and
-                abs(inst.bbox.y0 - result.bbox.y0) < 1
-                for inst in instances
-            )
-            if not is_duplicate:
-                instances.append(result)
-
         return instances
-
-    def _search_page(self, page: fitz.Page, pattern: str, is_regex: bool) -> List[TextInstance]:
-        """
-        Use PyMuPDF's search_for function for additional text finding.
-
-        Args:
-            page: PDF page
-            pattern: Search pattern
-            is_regex: Whether pattern is regex
-
-        Returns:
-            List of text instances
-        """
-        instances = []
-
-        if is_regex:
-            # PyMuPDF search doesn't support full regex, so we extract all text
-            # and match manually - already handled in extract_text_instances
-            return instances
-        else:
-            # Use built-in search for literal text
-            text_instances = page.search_for(pattern)
-            for rect in text_instances:
-                instance = TextInstance(
-                    content=pattern,
-                    bbox=rect,
-                    page_number=page.number,
-                    font_name="",  # search_for doesn't provide font info
-                    font_size=0.0
-                )
-                instances.append(instance)
-
-        return instances
-
-    def filter_by_context(
-        self,
-        page: fitz.Page,
-        instances: List[TextInstance],
-        pattern: TextPattern
-    ) -> List[TextInstance]:
-        """
-        Filter text instances based on context analysis.
-
-        Args:
-            page: PDF page
-            instances: Text instances to filter
-            pattern: Pattern configuration with context rules
-
-        Returns:
-            Filtered list of instances that should be redacted
-        """
-        if not self.context_analyzer:
-            return instances
-
-        filtered = []
-
-        for instance in instances:
-            # Check if this instance should be redacted based on context
-            should_redact = self.context_analyzer.is_in_redactable_context(
-                page, instance, pattern
-            )
-
-            if should_redact:
-                filtered.append(instance)
-
-        return filtered

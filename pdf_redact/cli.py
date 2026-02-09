@@ -17,10 +17,9 @@ init(autoreset=True)
 @click.version_option(version="1.0.0")
 def cli():
     """
-    PDF Redaction Tool - Context-aware redaction for industrial documents.
+    PDF Redaction Tool - Redact text and logos from PDFs.
 
-    Intelligently redacts text and logos from PDFs while preserving
-    technical schematics and dimension labels.
+    Permanently removes specified words, text patterns, and logos from PDF files.
     """
     pass
 
@@ -49,13 +48,13 @@ def init(output):
     for folder in folders:
         Path(folder).mkdir(exist_ok=True)
 
-    click.echo(Fore.GREEN + "✓ Created folders: input_pdfs, output_pdfs, reference_logos\n")
+    click.echo(Fore.GREEN + "Created folders: input_pdfs, output_pdfs, reference_logos\n")
 
     # Setup instructions
     click.echo(Fore.CYAN + "WHERE TO PUT YOUR FILES:")
-    click.echo("  • Put your PDF files in the 'input_pdfs' folder")
-    click.echo("  • Put logo images (PNG/JPG) in the 'reference_logos' folder")
-    click.echo("  • Redacted PDFs will be saved to 'output_pdfs'\n")
+    click.echo("  Put your PDF files in the 'input_pdfs' folder")
+    click.echo("  Put logo images (PNG/JPG) in the 'reference_logos' folder")
+    click.echo("  Redacted PDFs will be saved to 'output_pdfs'\n")
 
     click.pause("Press Enter to continue...")
     click.echo()
@@ -73,7 +72,7 @@ def init(output):
     if logo_templates:
         click.echo(f"Found {len(logo_templates)} logo(s) in reference_logos folder:")
         for template in logo_templates:
-            click.echo(f"  • {template.name}")
+            click.echo(f"  {template.name}")
         config.logo_redaction.templates = logo_templates
     else:
         click.echo("No logo images found in reference_logos folder.")
@@ -83,7 +82,7 @@ def init(output):
         config.to_yaml(output)
         click.echo()
         click.echo(Fore.GREEN + "="*80)
-        click.echo(Fore.GREEN + f"✓ Configuration saved to: {output}")
+        click.echo(Fore.GREEN + f"Configuration saved to: {output}")
         click.echo(Fore.GREEN + "="*80)
         click.echo()
 
@@ -106,7 +105,7 @@ def init(output):
 
         click.echo()
         click.echo(Fore.GREEN + "="*80)
-        click.echo(Fore.GREEN + "✓ ALL DONE!")
+        click.echo(Fore.GREEN + "ALL DONE!")
         click.echo(Fore.GREEN + "="*80)
         click.echo(f"Files processed: {success_count}/{total_count}")
         click.echo(f"Total redactions: {total_redactions}")
@@ -116,32 +115,38 @@ def init(output):
         click.echo()
 
     except Exception as e:
-        click.echo(Fore.RED + f"\n✗ Error: {e}")
+        click.echo(Fore.RED + f"\nError: {e}")
 
 
 @cli.command()
 @click.option(
     '--config',
     '-c',
-    required=True,
+    default='config.yaml',
     type=click.Path(exists=True),
-    help='Path to configuration file'
+    help='Path to configuration file (default: config.yaml)'
 )
 @click.option(
     '--input-dir',
     '-i',
-    required=True,
+    default='input_pdfs',
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
-    help='Input directory containing PDFs'
+    help='Input directory containing PDFs (default: input_pdfs)'
 )
 @click.option(
     '--output-dir',
     '-o',
-    required=True,
+    default='output_pdfs',
     type=click.Path(),
-    help='Output directory for redacted PDFs'
+    help='Output directory for redacted PDFs (default: output_pdfs)'
 )
-def process(config, input_dir, output_dir):
+@click.option(
+    '--verbose',
+    '-v',
+    is_flag=True,
+    help='Show detailed debug output for logo detection'
+)
+def process(config, input_dir, output_dir, verbose):
     """
     Process all PDFs in a directory using the configuration file.
 
@@ -155,6 +160,10 @@ def process(config, input_dir, output_dir):
 
         # Create processor
         processor = PDFProcessor(redaction_config)
+
+        # Pass verbose flag to image redactor
+        if verbose:
+            processor.image_redactor.verbose = True
 
         # Process directory
         click.echo(Fore.CYAN + f"Processing PDFs from: {input_dir}")
@@ -173,7 +182,7 @@ def process(config, input_dir, output_dir):
         total_redactions = sum(r['redaction_count'] for r in results.values())
 
         click.echo("\n" + Fore.GREEN + "="*80)
-        click.echo(Fore.GREEN + "✓ REDACTION COMPLETE")
+        click.echo(Fore.GREEN + "REDACTION COMPLETE")
         click.echo(Fore.GREEN + "="*80)
         click.echo(f"Files processed: {success_count}/{total_count}")
         click.echo(f"Total redactions: {total_redactions}")
@@ -186,7 +195,7 @@ def process(config, input_dir, output_dir):
             click.echo(Fore.YELLOW + f"Warning: {total_count - success_count} file(s) failed")
 
     except Exception as e:
-        click.echo(Fore.RED + f"\n✗ Error: {e}")
+        click.echo(Fore.RED + f"\nError: {e}")
         raise click.Abort()
 
 
@@ -275,7 +284,7 @@ def preview(config, pdf, verbose):
             click.echo()
 
     except Exception as e:
-        click.echo(Fore.RED + f"\n✗ Error: {e}")
+        click.echo(Fore.RED + f"\nError: {e}")
         raise click.Abort()
 
 
@@ -283,20 +292,38 @@ def configure_pii_redaction():
     """Interactive configuration of text redaction."""
     click.echo("What text do you want to redact?\n")
 
-    # Simple text/names to redact
-    click.echo("Enter text or names to redact (one per line).")
-    click.echo("Examples: 'John Smith', 'Acme Corporation', 'CONFIDENTIAL'")
+    # Word-level redaction
+    click.echo(Fore.YELLOW + "OPTION 1: Redact individual WORDS (precise, word-level redaction)")
+    click.echo("Enter specific words or names to redact. Only those exact words will be redacted,")
+    click.echo("not the entire text box they appear in.")
+    click.echo("Examples: 'John Smith', 'CONFIDENTIAL', 'Proprietary'")
     click.echo("Type 'done' when finished.\n")
 
     custom_names = []
-    custom_patterns = []
 
     while True:
-        text = click.prompt("Text to redact", default="", show_default=False)
+        text = click.prompt("Word to redact", default="", show_default=False)
         if not text or text.lower() == 'done':
             break
         custom_names.append(text)
-        click.echo(Fore.GREEN + f"✓ Will redact: {text}")
+        click.echo(Fore.GREEN + f"Will redact word: {text}")
+
+    click.echo()
+
+    # Textbox-level redaction
+    click.echo(Fore.YELLOW + "OPTION 2: Redact ENTIRE TEXT BOXES containing certain text")
+    click.echo("Enter text to search for. When found, the ENTIRE text box containing it will be redacted.")
+    click.echo("Examples: company names, specific identifiers that should remove surrounding context")
+    click.echo("Type 'done' when finished.\n")
+
+    custom_textbox_matches = []
+
+    while True:
+        text = click.prompt("Text to find (redacts whole textbox)", default="", show_default=False)
+        if not text or text.lower() == 'done':
+            break
+        custom_textbox_matches.append(text)
+        click.echo(Fore.GREEN + f"Will redact entire textbox containing: {text}")
 
     # Ask about common patterns
     redact_emails = False
@@ -304,20 +331,20 @@ def configure_pii_redaction():
     redact_addresses = False
     redact_ssn = False
 
-    if custom_names:
+    if custom_names or custom_textbox_matches:
         click.echo()
 
     if click.confirm("\nAlso redact email addresses? (e.g., john@example.com)", default=False):
         redact_emails = True
-        click.echo(Fore.GREEN + "✓ Will redact email addresses")
+        click.echo(Fore.GREEN + "Will redact email addresses")
 
     if click.confirm("Also redact phone numbers? (e.g., 555-123-4567)", default=False):
         redact_phones = True
-        click.echo(Fore.GREEN + "✓ Will redact phone numbers")
+        click.echo(Fore.GREEN + "Will redact phone numbers")
 
     if click.confirm("Also redact street addresses? (e.g., 123 Main Street)", default=False):
         redact_addresses = True
-        click.echo(Fore.GREEN + "✓ Will redact street addresses")
+        click.echo(Fore.GREEN + "Will redact street addresses")
 
     return PIIRedactionConfig(
         redact_emails=redact_emails,
@@ -325,29 +352,26 @@ def configure_pii_redaction():
         redact_addresses=redact_addresses,
         redact_ssn=redact_ssn,
         custom_names=custom_names,
-        custom_patterns=custom_patterns
+        custom_textbox_matches=custom_textbox_matches,
+        custom_patterns=[]
     )
 
 
 def auto_detect_logos():
     """Automatically detect all logo images in reference_logos folder."""
-    from pathlib import Path
-
     templates = []
-    logo_dir = Path('./reference_logos')
+    logo_dir = (Path.cwd() / 'reference_logos').resolve()
 
     if not logo_dir.exists():
         return templates
 
-    # Find all image files
-    image_extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG']
-    for ext in image_extensions:
-        for image_path in logo_dir.glob(f'*{ext}'):
+    for image_path in logo_dir.iterdir():
+        if image_path.suffix.lower() in ('.png', '.jpg', '.jpeg'):
             template = LogoTemplate(
                 name=image_path.stem,
-                image_path=str(image_path),
-                confidence_threshold=0.85,
-                scale_range=ScaleRange(min=0.5, max=2.0, step=0.1)
+                image_path=str(image_path.resolve()),
+                confidence_threshold=0.65,
+                scale_range=ScaleRange(min=0.5, max=3.0, step=0.1)
             )
             templates.append(template)
 
