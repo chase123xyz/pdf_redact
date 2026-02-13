@@ -21,7 +21,7 @@ class PDFProcessor:
         self.image_redactor = ImageRedactor(config)
         self.all_redactions = []
 
-    def process_pdf(self, input_path: str, output_path: str) -> List[RedactionArea]:
+    def process_pdf(self, input_path: str, output_path: str, audit_path: Optional[str] = None) -> List[RedactionArea]:
         """Process a single PDF file."""
         try:
             doc = fitz.open(input_path)
@@ -42,10 +42,36 @@ class PDFProcessor:
             doc.save(output_path, **save_options)
             doc.close()
 
+            if audit_path and redaction_areas:
+                self.generate_audit_pdf(output_path, audit_path, redaction_areas)
+
             return redaction_areas
 
         except Exception as e:
             raise RuntimeError(f"Error processing PDF {input_path}: {e}") from e
+
+    def generate_audit_pdf(self, redacted_path: str, audit_path: str, areas: List[RedactionArea]) -> None:
+        """Generate an audit PDF with yellow highlights where redactions were made."""
+        doc = fitz.open(redacted_path)
+
+        # Group areas by page number
+        pages_areas: dict = {}
+        for area in areas:
+            pages_areas.setdefault(area.page_number, []).append(area)
+
+        for page_num, page_areas in pages_areas.items():
+            page = doc[page_num]
+            for area in page_areas:
+                page.draw_rect(
+                    area.rect,
+                    color=(1, 1, 0),
+                    fill=(1, 1, 0),
+                    stroke_opacity=0.5,
+                    fill_opacity=0.3,
+                )
+
+        doc.save(audit_path)
+        doc.close()
 
     def process_page(self, page: fitz.Page) -> List[RedactionArea]:
         """Process a single page."""
@@ -83,7 +109,7 @@ class PDFProcessor:
         for area in areas:
             page.add_redact_annot(area.rect, fill=fill_color)
 
-        page.apply_redactions()
+        page.apply_redactions(graphics=fitz.PDF_REDACT_IMAGE_NONE)
 
     def process_directory(
         self,
@@ -127,10 +153,12 @@ class PDFProcessor:
                 for pdf_file in pdf_files:
                     progress.update(task, filename=pdf_file.name)
                     output_file = output_path / pdf_file.name
+                    audit_file = output_path / f"{pdf_file.stem}_audit.pdf"
                     try:
-                        redactions = self.process_pdf(str(pdf_file), str(output_file))
+                        redactions = self.process_pdf(str(pdf_file), str(output_file), str(audit_file))
                         results[str(pdf_file)] = {
                             "output": str(output_file),
+                            "audit_output": str(audit_file) if redactions else None,
                             "redaction_count": len(redactions),
                             "redactions": redactions,
                             "success": True,
@@ -139,6 +167,7 @@ class PDFProcessor:
                     except Exception as e:
                         results[str(pdf_file)] = {
                             "output": None,
+                            "audit_output": None,
                             "redaction_count": 0,
                             "redactions": [],
                             "success": False,
@@ -150,20 +179,23 @@ class PDFProcessor:
                     future_to_pdf = {}
                     for pdf_file in pdf_files:
                         output_file = output_path / pdf_file.name
+                        audit_file = output_path / f"{pdf_file.stem}_audit.pdf"
                         future = executor.submit(
                             self.process_pdf,
                             str(pdf_file),
-                            str(output_file)
+                            str(output_file),
+                            str(audit_file)
                         )
-                        future_to_pdf[future] = (str(pdf_file), str(output_file), pdf_file.name)
+                        future_to_pdf[future] = (str(pdf_file), str(output_file), str(audit_file), pdf_file.name)
 
                     for future in as_completed(future_to_pdf):
-                        input_file, output_file, filename = future_to_pdf[future]
+                        input_file, output_file, audit_file, filename = future_to_pdf[future]
                         progress.update(task, filename=filename)
                         try:
                             redactions = future.result()
                             results[input_file] = {
                                 "output": output_file,
+                                "audit_output": audit_file if redactions else None,
                                 "redaction_count": len(redactions),
                                 "redactions": redactions,
                                 "success": True,
@@ -172,6 +204,7 @@ class PDFProcessor:
                         except Exception as e:
                             results[input_file] = {
                                 "output": None,
+                                "audit_output": None,
                                 "redaction_count": 0,
                                 "redactions": [],
                                 "success": False,

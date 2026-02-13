@@ -58,6 +58,7 @@ class ReportGenerator:
             file_report = {
                 "input_file": input_file,
                 "output_file": result["output"],
+                "audit_file": result.get("audit_output"),
                 "success": result["success"],
                 "error": result["error"],
                 "redaction_count": result["redaction_count"],

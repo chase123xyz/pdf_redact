@@ -10,6 +10,7 @@ Permanently redact text and logos from PDF files. Removes specified words, text 
 - **Logo detection**: Multi-scale template matching finds logos at any size
 - **True redaction**: Content is permanently removed via PyMuPDF
 - **Batch processing**: Process multiple PDFs in parallel
+- **Audit PDFs**: Auto-generated `_audit.pdf` files show where redactions were made
 - **Detailed reports**: JSON reports of all redactions applied
 
 ## Installation
@@ -58,7 +59,7 @@ Put your files in place before running, or re-run after adding files.
 your_project/
   1. original_pdfs/   ← Put your PDFs here
   2. logos/            ← Put logo images (PNG/JPG) here
-  3. outputs/          ← Redacted PDFs appear here
+  3. outputs/          ← Redacted PDFs + audit PDFs appear here
   .pdf_redact/        ← Config & reports (hidden)
 ```
 
@@ -109,6 +110,16 @@ processing:
   redaction_color: [255, 255, 255]
 ```
 
+## Audit Files
+
+For each redacted PDF that has at least one redaction, an audit file is generated:
+
+```
+document.pdf       → document.pdf (redacted) + document_audit.pdf
+```
+
+The audit PDF is a copy of the redacted output with semi-transparent yellow highlights over every location where content was removed. Use it to verify redactions were applied in the right places before distributing the redacted file.
+
 ## Troubleshooting
 
 ### Logo not detected
@@ -138,6 +149,9 @@ Not currently. The tool requires selectable text. Logo detection works on any PD
 
 **Can I undo redactions?**
 No. Keep your originals in a separate location.
+
+**What are the `_audit.pdf` files?**
+They show where redactions were applied using yellow highlights over the redacted output. They're generated automatically for any PDF that had redactions. If a PDF had zero redactions, no audit file is created.
 
 **Why is processing slow?**
 Logo detection renders each page at 300 DPI and runs template matching at multiple scales. Lower `render_dpi` or increase `max_workers` in config.

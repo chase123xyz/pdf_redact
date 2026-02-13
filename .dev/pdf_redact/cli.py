@@ -172,6 +172,7 @@ def show_results(results: dict):
     table.add_column("File", style="bold")
     table.add_column("Status", justify="center")
     table.add_column("Redactions", justify="right")
+    table.add_column("Audit", justify="center")
 
     for input_file, result in results.items():
         filename = Path(input_file).name
@@ -179,11 +180,14 @@ def show_results(results: dict):
             status = "[green]✓[/green]"
         else:
             status = "[red]✗[/red]"
-        table.add_row(filename, status, str(result['redaction_count']))
+        audit = "[green]✓[/green]" if result.get('audit_output') else "[dim]—[/dim]"
+        table.add_row(filename, status, str(result['redaction_count']), audit)
 
     console.print(table)
 
     # Final summary panel
+    audit_count = sum(1 for r in results.values() if r.get('audit_output'))
+
     if success_count < total_count:
         failed = total_count - success_count
         summary_text = (
@@ -191,15 +195,17 @@ def show_results(results: dict):
             f"[bold]Total redactions:[/bold] {total_redactions}\n"
             f"[yellow]⚠ {failed} file(s) failed[/yellow]\n\n"
             f"Redacted PDFs are in: [bold cyan]{OUTPUT_DIR}/[/bold cyan]\n"
-            f"[dim]Your originals in {INPUT_DIR}/ are unchanged[/dim]"
         )
     else:
         summary_text = (
             f"[bold]Files processed:[/bold] {success_count}/{total_count}\n"
             f"[bold]Total redactions:[/bold] {total_redactions}\n\n"
             f"Redacted PDFs are in: [bold cyan]{OUTPUT_DIR}/[/bold cyan]\n"
-            f"[dim]Your originals in {INPUT_DIR}/ are unchanged[/dim]"
         )
+
+    if audit_count:
+        summary_text += f"Audit PDFs ({audit_count}): [bold cyan]{OUTPUT_DIR}/*_audit.pdf[/bold cyan]\n"
+    summary_text += f"[dim]Your originals in {INPUT_DIR}/ are unchanged[/dim]"
 
     console.print()
     console.print(Panel(
