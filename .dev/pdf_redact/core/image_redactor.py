@@ -238,7 +238,7 @@ class ImageRedactor:
 
             # Weighted average: grayscale is primary, edge is supplementary
             # Edge scores tend to be much lower, so weight grayscale more heavily
-            result = 0.7 * result_gray + 0.3 * result_edges
+            result = np.maximum(result_gray, 0.7 * result_gray + 0.3 * result_edges)
 
             # Find matches above the configured threshold
             if cv_method == cv2.TM_SQDIFF_NORMED:
